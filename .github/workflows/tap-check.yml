@@ -18,12 +18,16 @@ jobs:
             echo "::error::This tap is App cask-only; Formula/ must not be published."
             exit 1
           fi
-          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' | grep .; then
-            echo "::error::This tap may publish only the stable and nightly App casks."
+          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' | grep .; then
+            echo "::error::This tap may publish only the stable, nightly, and Full App casks."
             exit 1
           fi
-          if grep -R "cask \"one-person-lab-modules\\|One-Person-Lab-Full\\|url .*one-person-lab-modules" Casks; then
-            echo "::error::This tap must not publish module, agent-pack, or Full first-install Homebrew targets."
+          if grep -R "cask \"one-person-lab-modules\\|url .*one-person-lab-modules" Casks; then
+            echo "::error::This tap must not publish module or agent-pack Homebrew targets."
+            exit 1
+          fi
+          if grep -R "One-Person-Lab-Full" Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
+            echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
       - name: Validate casks
@@ -32,6 +36,7 @@ jobs:
         run: |
           set -euo pipefail
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
-          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
           brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab-full"

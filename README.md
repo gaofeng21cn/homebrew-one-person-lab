@@ -16,6 +16,13 @@ Nightly builds are opt-in:
 brew install --cask one-person-lab-nightly
 ```
 
+Complete first-install package:
+
+```bash
+brew install --cask one-person-lab-full
+open -a "One Person Lab"
+```
+
 Update with the standard Homebrew flow:
 
 ```bash
@@ -26,7 +33,7 @@ brew upgrade --cask one-person-lab
 The tap syncs casks from published `gaofeng21cn/one-person-lab-app` GitHub
 Releases through the `Sync From App Releases` workflow. The scheduled run tracks
 the latest published nightly prerelease; manual runs can sync stable, nightly,
-or both.
+Full, or all casks.
 
 This tap is a transport/index only. The casks download signed release assets
 from `gaofeng21cn/one-person-lab-app`. After installation, open
@@ -40,7 +47,8 @@ Terminal diagnostics remain available when needed:
 opl system initialize --json
 ```
 
-Full first-install packages are distributed from GitHub Releases, not Homebrew.
-MAS/MAG/RCA/OMA agent packs are prepared by App/CLI maintenance after the App is
-installed. This tap intentionally does not publish `one-person-lab-modules`,
-agent-specific formulae, or Full first-install casks.
+The `one-person-lab-full` cask is an explicit stable first-install surface for
+the larger Full DMG. It stays outside standard updater metadata. MAS/MAG/RCA/OMA
+agent packs are prepared by App/CLI maintenance after the App is installed. This
+tap intentionally does not publish `one-person-lab-modules` or agent-specific
+formulae.

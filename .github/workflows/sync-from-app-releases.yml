@@ -11,6 +11,7 @@ on:
         options:
           - stable
           - nightly
+          - full
           - all
       release_tag:
         description: Optional explicit App release tag, for example v26.6.3-nightly
@@ -40,11 +41,11 @@ jobs:
           channel="${{ github.event.inputs.channel || 'nightly' }}"
           release_tag="${{ github.event.inputs.release_tag }}"
           if [ "$channel" = "all" ] && [ -n "$release_tag" ]; then
-            echo "::error::release_tag can only be used with stable or nightly, not all."
+            echo "::error::release_tag can only be used with stable, nightly, or full, not all."
             exit 1
           fi
           if [ "$channel" = "all" ]; then
-            echo "channels=stable nightly" >> "$GITHUB_OUTPUT"
+            echo "channels=stable nightly full" >> "$GITHUB_OUTPUT"
           else
             echo "channels=$channel" >> "$GITHUB_OUTPUT"
           fi
@@ -75,18 +76,23 @@ jobs:
             echo "::error::This tap is App cask-only; Formula/ must not be published."
             exit 1
           fi
-          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' | grep .; then
-            echo "::error::This tap may publish only the stable and nightly App casks."
+          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' | grep .; then
+            echo "::error::This tap may publish only the stable, nightly, and Full App casks."
             exit 1
           fi
-          if grep -R "cask \"one-person-lab-modules\\|One-Person-Lab-Full\\|url .*one-person-lab-modules" Casks; then
-            echo "::error::This tap must not publish module, agent-pack, or Full first-install Homebrew targets."
+          if grep -R "cask \"one-person-lab-modules\\|url .*one-person-lab-modules" Casks; then
+            echo "::error::This tap must not publish module or agent-pack Homebrew targets."
+            exit 1
+          fi
+          if grep -R "One-Person-Lab-Full" Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
+            echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
-          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
           brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab-full"
 
       - name: Commit tap update
         shell: bash
@@ -98,6 +104,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb
+          git add Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb
           git commit -m "Sync OPL Homebrew casks from App releases"
           git push origin HEAD:main

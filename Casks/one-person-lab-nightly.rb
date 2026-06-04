@@ -13,6 +13,7 @@ cask "one-person-lab-nightly" do
 
   depends_on macos: :big_sur
   depends_on arch: :arm64
+  conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
 
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: nightly
@@ -24,7 +25,9 @@ cask "one-person-lab-nightly" do
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
   # cohort: standard_desktop_homebrew_distribution
+  # standard_updater_visible: true
   # modules_payload_allowed: false
+  # bundled_full_runtime_payload_allowed: false
   # agent_pack_homebrew_allowed: false
   # agent_pack_activation_owner: app_cli_managed_background_maintenance
   # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly
