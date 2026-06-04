@@ -12,6 +12,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Validate casks
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
