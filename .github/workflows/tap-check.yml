@@ -1,0 +1,20 @@
+name: Tap Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  audit:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate casks
+        run: |
+          set -euo pipefail
+          brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
+          brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
