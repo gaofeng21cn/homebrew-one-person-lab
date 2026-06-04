@@ -13,6 +13,11 @@ Nightly builds are opt-in:
 brew install --cask one-person-lab-nightly
 ```
 
+The tap syncs casks from published `gaofeng21cn/one-person-lab-app` GitHub
+Releases through the `Sync From App Releases` workflow. The scheduled run tracks
+the latest published nightly prerelease; manual runs can sync stable, nightly,
+or both.
+
 This tap is a transport/index only. The casks download signed release assets
 from `gaofeng21cn/one-person-lab-app`; One Person Lab activation and repair
 remain owned by the OPL CLI:

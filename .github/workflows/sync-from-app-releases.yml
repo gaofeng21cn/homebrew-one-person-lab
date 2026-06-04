@@ -1,0 +1,89 @@
+name: Sync From App Releases
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Cask channel to sync
+        required: true
+        default: nightly
+        type: choice
+        options:
+          - stable
+          - nightly
+          - all
+      release_tag:
+        description: Optional explicit App release tag, for example v26.6.3-nightly
+        required: false
+        type: string
+  schedule:
+    - cron: '17 23 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-from-app-releases-${{ github.event.inputs.channel || 'nightly' }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Resolve sync channels
+        id: channels
+        shell: bash
+        run: |
+          set -euo pipefail
+          channel="${{ github.event.inputs.channel || 'nightly' }}"
+          release_tag="${{ github.event.inputs.release_tag }}"
+          if [ "$channel" = "all" ] && [ -n "$release_tag" ]; then
+            echo "::error::release_tag can only be used with stable or nightly, not all."
+            exit 1
+          fi
+          if [ "$channel" = "all" ]; then
+            echo "channels=stable nightly" >> "$GITHUB_OUTPUT"
+          else
+            echo "channels=$channel" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Sync casks from App releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNELS: ${{ steps.channels.outputs.channels }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          for channel in $CHANNELS; do
+            args=(--channel "$channel")
+            if [ -n "$RELEASE_TAG" ]; then
+              args+=(--release-tag "$RELEASE_TAG")
+            fi
+            node scripts/sync-cask-from-release.mjs "${args[@]}"
+          done
+
+      - name: Validate tap
+        shell: bash
+        run: |
+          set -euo pipefail
+          brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
+          brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
+
+      - name: Commit tap update
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "No Homebrew cask updates."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb
+          git commit -m "Sync OPL Homebrew casks from App releases"
+          git push origin HEAD:main

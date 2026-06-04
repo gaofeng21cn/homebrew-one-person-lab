@@ -8,7 +8,7 @@ cask "one-person-lab-nightly" do
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
 
   livecheck do
-    skip "Nightly casks track prerelease cohorts through App release automation"
+    skip "Nightly casks track prerelease cohorts through tap automation"
   end
 
   depends_on macos: :big_sur
