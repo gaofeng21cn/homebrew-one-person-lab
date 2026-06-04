@@ -71,6 +71,18 @@ jobs:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ -d Formula ]; then
+            echo "::error::This tap is App cask-only; Formula/ must not be published."
+            exit 1
+          fi
+          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' | grep .; then
+            echo "::error::This tap may publish only the stable and nightly App casks."
+            exit 1
+          fi
+          if grep -R "cask \"one-person-lab-modules\\|One-Person-Lab-Full\\|url .*one-person-lab-modules" Casks; then
+            echo "::error::This tap must not publish module, agent-pack, or Full first-install Homebrew targets."
+            exit 1
+          fi
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
           brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"

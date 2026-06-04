@@ -41,5 +41,6 @@ opl system initialize --json
 ```
 
 Full first-install packages are distributed from GitHub Releases, not Homebrew.
-CLI and module-bundle formula lanes are reserved until matching release-cohort
-tarball assets exist.
+MAS/MAG/RCA/OMA agent packs are prepared by App/CLI maintenance after the App is
+installed. This tap intentionally does not publish `one-person-lab-modules`,
+agent-specific formulae, or Full first-install casks.
