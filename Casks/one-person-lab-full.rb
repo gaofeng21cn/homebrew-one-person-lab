@@ -12,9 +12,9 @@ cask "one-person-lab-full" do
     regex(%r{/releases/tag/v?(\d+(?:\.\d+)*)}i)
   end
 
+  conflicts_with cask: ["one-person-lab", "one-person-lab-nightly"]
   depends_on macos: :big_sur
   depends_on arch: :arm64
-  conflicts_with cask: ["one-person-lab", "one-person-lab-nightly"]
 
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: full

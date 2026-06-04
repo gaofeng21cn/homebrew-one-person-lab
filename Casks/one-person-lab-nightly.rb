@@ -11,9 +11,9 @@ cask "one-person-lab-nightly" do
     skip "Nightly casks track prerelease cohorts through tap automation"
   end
 
+  conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
   depends_on macos: :big_sur
   depends_on arch: :arm64
-  conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
 
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: nightly
