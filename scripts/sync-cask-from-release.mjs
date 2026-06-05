@@ -228,7 +228,7 @@ function main() {
     : `One-Person-Lab-${version}-mac-arm64.dmg`;
   const dmgAsset = assetByName(assets, dmgName);
   const manifestAsset = assetByName(assets, options.channel === 'full' ? 'full-package-manifest.json' : 'latest-arm64-mac.yml');
-  assetByName(assets, options.channel === 'full' ? 'full-gatekeeper-launch-policy.json' : 'standard-gatekeeper-launch-policy.json');
+  assetByName(assets, options.channel === 'full' ? 'full-local-authorization-policy.json' : 'standard-local-authorization-policy.json');
   const checksum = digestOf(dmgAsset);
   const manifestUrl = `https://github.com/${appRepo}/releases/download/${tag}/${manifestAsset.name}`;
   const caskPath = options.channel === 'nightly'
