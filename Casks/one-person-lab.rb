@@ -1,6 +1,6 @@
 cask "one-person-lab" do
   version "26.6.21"
-  sha256 "0f929d41bbb35f9629264e10acf7c6f5e6a82920d7d5879a231aaaa1591be804"
+  sha256 "61a322b8ee471acffa3b078397b655d23d1eba0bd9b05895adcfd45481d3801b"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
   name "One Person Lab"
@@ -21,7 +21,7 @@ cask "one-person-lab" do
   # package_kind: app_standard
   # version: 26.6.21
   # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.6.21/latest-arm64-mac.yml
-  # checksum: sha256:0f929d41bbb35f9629264e10acf7c6f5e6a82920d7d5879a231aaaa1591be804
+  # checksum: sha256:61a322b8ee471acffa3b078397b655d23d1eba0bd9b05895adcfd45481d3801b
   # full_first_install_allowed: false
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
