@@ -36,6 +36,9 @@ jobs:
         run: |
           set -euo pipefail
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          if brew help trust >/dev/null 2>&1; then
+            brew trust "$GITHUB_REPOSITORY"
+          fi
           brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
           brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
