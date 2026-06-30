@@ -19,6 +19,20 @@ for (const workflow of [
   assert.match(content, /do not create tap-local release truth\/currentness/);
 }
 
+for (const [cask, channel, packageKind] of [
+  ['Casks/one-person-lab.rb', 'stable', 'app_standard'],
+  ['Casks/one-person-lab-nightly.rb', 'nightly', 'app_standard'],
+  ['Casks/one-person-lab-full.rb', 'full', 'app_full_first_install'],
+]) {
+  const content = read(cask);
+  assert.match(content, new RegExp(`# channel: ${channel}`));
+  assert.match(content, new RegExp(`# package_kind: ${packageKind}`));
+  assert.match(content, /# downstream_mirror_only: true/);
+  assert.match(content, /# release_truth_authority: app_release/);
+  assert.match(content, /# failure_feedback_owner: app_release_operator/);
+  assert.match(content, /# must_not_define_release_currentness: true/);
+}
+
 function writeMockGh(dir, assetsJson) {
   const bin = path.join(dir, 'bin');
   fs.mkdirSync(bin);
