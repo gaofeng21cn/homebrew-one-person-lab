@@ -5,6 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const appRepo = 'gaofeng21cn/one-person-lab-app';
+const failureRoute = [
+  'Homebrew tap is a downstream App release mirror only.',
+  `Route this failure to the App release operator/authority for ${appRepo}; fix or republish the App release, then rerun tap sync.`,
+  'The tap must not define release truth/currentness or invent tap-local status semantics.',
+].join('\n');
+const appReleaseFailurePattern = /No published nightly release found|Latest stable release|Missing release asset|must expose a sha256 digest|Draft releases|Stable cask updates must read|Nightly cask updates must read/;
 const sha256Pattern = /^sha256:(?<hash>[a-f0-9]{64})$/i;
 const caskConflictMap = {
   'one-person-lab': ['one-person-lab-full', 'one-person-lab-nightly'],
@@ -129,6 +135,9 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
     `  # version: ${version}`,
     `  # manifest: ${manifestUrl}`,
     `  # checksum: sha256:${checksum}`,
+    '  # downstream_mirror_only: true',
+    '  # release_truth_authority: app_release',
+    '  # failure_feedback_owner: app_release_operator',
     `  # full_first_install_allowed: ${isFull ? 'true' : 'false'}`,
     '  # stable_promotion_from_nightly_allowed: false',
     '  # publishes_or_pushes_remote: false',
@@ -139,6 +148,7 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
     '  # agent_pack_homebrew_allowed: false',
     '  # agent_pack_activation_owner: app_cli_managed_background_maintenance',
     '  # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly',
+    '  # must_not_define_release_currentness: true',
     '  # must_not_write_user_codex_state: true',
     '  # must_not_define_agent_semantics: true',
     '  # OPL_HOMEBREW_BOUNDARY_END',
@@ -258,6 +268,10 @@ function main() {
 try {
   main();
 } catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(message);
+  if (appReleaseFailurePattern.test(message)) {
+    console.error(failureRoute);
+  }
   process.exit(1);
 }

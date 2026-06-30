@@ -35,6 +35,12 @@ jobs:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          report_app_release_failure() {
+            status=$?
+            echo "::error::Homebrew tap audit failed in a downstream mirror. Route the audit output to the App release operator/authority for gaofeng21cn/one-person-lab-app; do not create tap-local release truth/currentness."
+            exit "$status"
+          }
+          trap report_app_release_failure ERR
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"

@@ -58,6 +58,12 @@ jobs:
           RELEASE_TAG: ${{ github.event.inputs.release_tag }}
         run: |
           set -euo pipefail
+          report_app_release_failure() {
+            status=$?
+            echo "::error::Homebrew tap sync failed in a downstream mirror. Route the failing tag, asset, digest, or audit output to the App release operator/authority for gaofeng21cn/one-person-lab-app; do not create tap-local release truth/currentness."
+            exit "$status"
+          }
+          trap report_app_release_failure ERR
           for channel in $CHANNELS; do
             args=(--channel "$channel")
             if [ -n "$RELEASE_TAG" ]; then
@@ -88,6 +94,12 @@ jobs:
             echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
+          report_app_release_failure() {
+            status=$?
+            echo "::error::Homebrew tap audit failed in a downstream mirror. Route the audit output to the App release operator/authority for gaofeng21cn/one-person-lab-app; do not create tap-local release truth/currentness."
+            exit "$status"
+          }
+          trap report_app_release_failure ERR
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"

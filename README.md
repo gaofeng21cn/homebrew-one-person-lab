@@ -35,8 +35,15 @@ Releases through the `Sync From App Releases` workflow. The scheduled run tracks
 the latest published nightly prerelease; manual runs can sync stable, nightly,
 Full, or all casks.
 
-This tap is a transport/index only. The casks download signed release assets
-from `gaofeng21cn/one-person-lab-app`. After installation, open
+This tap is a downstream transport/index mirror only. Release truth, latest /
+currentness decisions, asset fixes, promotion, and republishing stay with the
+`gaofeng21cn/one-person-lab-app` GitHub Releases operator/authority. If tap sync
+or audit fails, route the failing tag, asset, digest, or audit output back to
+that App release authority and rerun the tap sync after the App release is fixed;
+do not add tap-local status, readiness, or release-currentness semantics here.
+
+The casks download signed release assets from `gaofeng21cn/one-person-lab-app`.
+After installation, open
 `One Person Lab.app`; first launch prepares the workspace and continues
 App-managed maintenance in the background.
 
