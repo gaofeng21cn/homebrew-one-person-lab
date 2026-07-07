@@ -2,6 +2,18 @@
 
 Homebrew tap for the One Person Lab desktop App.
 
+## Public Role Boundary
+
+This repository is the downstream Homebrew distribution tap for One Person Lab
+App release artifacts. It mirrors cask metadata and download targets derived
+from published `gaofeng21cn/one-person-lab-app` releases.
+
+The tap does not own App release truth. Release promotion, latest/currentness
+decisions, asset fixes, checksums, notarization status, readiness, and
+republishing stay with the App release authority. Tap failures should route the
+tag, asset, digest, or audit output back to the App release surface, then rerun
+the sync after the App release is corrected.
+
 Install and open the App:
 
 ```bash
