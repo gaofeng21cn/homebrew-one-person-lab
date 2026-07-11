@@ -1,18 +1,22 @@
 # One Person Lab Homebrew Tap
 
-Homebrew tap for the One Person Lab desktop App.
+Homebrew tap for the One Person Lab desktop App, with OPL Formula publication pending.
 
 ## Public Role Boundary
 
-This repository is the downstream Homebrew distribution tap for One Person Lab
-App release artifacts. It mirrors cask metadata and download targets derived
-from published `gaofeng21cn/one-person-lab-app` releases.
+This repository is a downstream Homebrew distribution tap. The three casks
+mirror App metadata and download targets derived from published
+`gaofeng21cn/one-person-lab-app` releases. The tap contains Formula generation
+and validation plumbing, but `opl` Formula publication is not yet public.
 
-The tap does not own App release truth. Release promotion, latest/currentness
-decisions, asset fixes, checksums, notarization status, readiness, and
-republishing stay with the App release authority. Tap failures should route the
-tag, asset, digest, or audit output back to the App release surface, then rerun
-the sync after the App release is corrected.
+The tap does not own Framework or App release truth. Formula sync is fail-closed
+until the Framework package authority publishes a matching
+`framework_core.homebrew_formula` projection in
+`ghcr.io/gaofeng21cn/one-person-lab-manifest:latest`. Once present, the sync
+atomically generates the sole allowed `Formula/opl.rb` from the approved version,
+source head, and immutable archive URL, computes the transport checksum from the
+downloaded bytes, and adds the same-tap Formula dependency to all three casks.
+Until then, no Formula or Cask Formula dependency is published.
 
 Install and open the App:
 
@@ -42,17 +46,15 @@ brew update
 brew upgrade --cask one-person-lab
 ```
 
-The tap syncs casks from published `gaofeng21cn/one-person-lab-app` GitHub
-Releases through the `Sync From App Releases` workflow. The scheduled run tracks
-the latest published nightly prerelease; manual runs can sync stable, nightly,
-Full, or all casks.
+The DMG-origin App may use an App-managed private Framework install for launch recovery, but
+Casks do not define Framework version truth. Casks continue to sync from
+published App GitHub Releases while Formula publication remains pending.
 
-This tap is a downstream transport/index mirror only. Release truth, latest /
-currentness decisions, asset fixes, promotion, and republishing stay with the
-`gaofeng21cn/one-person-lab-app` GitHub Releases operator/authority. If tap sync
-or audit fails, route the failing tag, asset, digest, or audit output back to
-that App release authority and rerun the tap sync after the App release is fixed;
-do not add tap-local status, readiness, or release-currentness semantics here.
+This tap is a downstream transport/index mirror only. Formula failures involving
+the package version, source head, or package archive checksum route to the OPL
+Framework package release authority. Cask failures involving a tag, DMG asset,
+digest, promotion, or notarization route to the App release authority. Do not add
+tap-local status, readiness, or release-currentness semantics here.
 
 The casks download signed release assets from `gaofeng21cn/one-person-lab-app`.
 After installation, open
@@ -60,11 +62,6 @@ After installation, open
 App-managed maintenance in the background.
 
 If the App reports that setup or repair is needed, follow the in-app prompt.
-Terminal diagnostics remain available when needed:
-
-```bash
-opl system initialize --json
-```
 
 The `one-person-lab-full` cask is an explicit stable first-install surface for
 the larger Full DMG. It stays outside standard updater metadata. MAS/MAG/RCA/OMA

@@ -11,11 +11,22 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Guard cask-only tap surface
+      - name: Test tap distribution boundaries
+        run: node test/downstream-boundary.test.mjs
+      - name: Guard tap surface
         run: |
           set -euo pipefail
-          if [ -d Formula ]; then
-            echo "::error::This tap is App cask-only; Formula/ must not be published."
+          formula_files="$(find Formula -type f -name '*.rb' 2>/dev/null | sort || true)"
+          if [ -n "$formula_files" ] && [ "$formula_files" != "Formula/opl.rb" ]; then
+            echo "::error::This tap may publish only Formula/opl.rb and no agent-specific formulae."
+            exit 1
+          fi
+          if [ -f Formula/opl.rb ]; then
+            for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb; do
+              grep -q 'depends_on formula: "opl"' "$cask" || { echo "::error::$cask must depend on the published opl Formula."; exit 1; }
+            done
+          elif grep -R 'depends_on formula: "opl"' Casks; then
+            echo "::error::Casks must not depend on opl before Formula/opl.rb is published."
             exit 1
           fi
           if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' | grep .; then
@@ -30,7 +41,7 @@ jobs:
             echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
-      - name: Validate casks
+      - name: Validate Formula and casks
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
@@ -45,6 +56,17 @@ jobs:
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"
           fi
+          report_framework_release_failure() {
+            status=$?
+            echo "::error::Homebrew Formula audit failed in a downstream transport. Route the source head, Framework package manifest, or transport checksum output to the OPL Framework package release operator/authority; do not create tap-local release truth/currentness."
+            exit "$status"
+          }
+          if [ -f Formula/opl.rb ]; then
+            trap report_framework_release_failure ERR
+            brew style "$GITHUB_REPOSITORY/opl"
+            brew audit --strict --online "$GITHUB_REPOSITORY/opl"
+          fi
+          trap report_app_release_failure ERR
           brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
           brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"

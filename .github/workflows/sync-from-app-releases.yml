@@ -50,6 +50,19 @@ jobs:
             echo "channels=$channel" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Sync opl Formula from Framework package manifest when authorized
+        shell: bash
+        run: |
+          set -euo pipefail
+          if node scripts/sync-formula-from-framework-manifest.mjs; then
+            echo "OPL Formula projection synchronized."
+          elif [ -f Formula/opl.rb ]; then
+            echo "::error::A published opl Formula cannot be preserved silently after Framework projection validation fails."
+            exit 1
+          else
+            echo "::warning::OPL Formula remains unpublished because the Framework manifest has no current owner-approved Homebrew projection."
+          fi
+
       - name: Sync casks from App releases
         shell: bash
         env:
@@ -69,6 +82,9 @@ jobs:
             if [ -n "$RELEASE_TAG" ]; then
               args+=(--release-tag "$RELEASE_TAG")
             fi
+            if [ -f Formula/opl.rb ]; then
+              args+=(--with-opl-formula)
+            fi
             node scripts/sync-cask-from-release.mjs "${args[@]}"
           done
 
@@ -78,8 +94,17 @@ jobs:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [ -d Formula ]; then
-            echo "::error::This tap is App cask-only; Formula/ must not be published."
+          formula_files="$(find Formula -type f -name '*.rb' 2>/dev/null | sort || true)"
+          if [ -n "$formula_files" ] && [ "$formula_files" != "Formula/opl.rb" ]; then
+            echo "::error::This tap may publish only Formula/opl.rb and no agent-specific formulae."
+            exit 1
+          fi
+          if [ -f Formula/opl.rb ]; then
+            for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb; do
+              grep -q 'depends_on formula: "opl"' "$cask" || { echo "::error::$cask must depend on the published opl Formula."; exit 1; }
+            done
+          elif grep -R 'depends_on formula: "opl"' Casks; then
+            echo "::error::Casks must not depend on opl before Formula/opl.rb is published."
             exit 1
           fi
           if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' | grep .; then
@@ -104,6 +129,17 @@ jobs:
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"
           fi
+          report_framework_release_failure() {
+            status=$?
+            echo "::error::Homebrew Formula audit failed in a downstream transport. Route the source head, Framework package manifest, or transport checksum output to the OPL Framework package release operator/authority; do not create tap-local release truth/currentness."
+            exit "$status"
+          }
+          if [ -f Formula/opl.rb ]; then
+            trap report_framework_release_failure ERR
+            brew style "$GITHUB_REPOSITORY/opl"
+            brew audit --strict --online "$GITHUB_REPOSITORY/opl"
+          fi
+          trap report_app_release_failure ERR
           brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
           brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
@@ -120,5 +156,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb
-          git commit -m "Sync OPL Homebrew casks from App releases"
+          if [ -f Formula/opl.rb ]; then
+            git add Formula/opl.rb
+          fi
+          git commit -m "Sync OPL Homebrew distributions from release authorities"
           git push origin HEAD:main

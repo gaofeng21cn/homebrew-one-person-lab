@@ -22,9 +22,14 @@ function parseArgs(argv) {
   const parsed = {
     channel: '',
     releaseTag: '',
+    dependsOnOplFormula: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+    if (token === '--with-opl-formula') {
+      parsed.dependsOnOplFormula = true;
+      continue;
+    }
     const value = argv[index + 1];
     if (!value || value.startsWith('--')) {
       throw new Error(`${token} requires a value.`);
@@ -108,7 +113,7 @@ function validateRenderedCask({ channel, content }) {
       'package_kind: app_full_first_install',
       'full_first_install_allowed: true',
       'standard_updater_visible: false',
-      'full-package-manifest.json',
+      'opl-release-manifest.json',
       'One-Person-Lab-Full-#{version}-mac-arm64.dmg',
     ]) {
       if (!content.includes(required)) {
@@ -117,7 +122,7 @@ function validateRenderedCask({ channel, content }) {
     }
     return;
   }
-  if (/One-Person-Lab-Full-[^"'\s]+-mac-arm64\.dmg|full-package-manifest/i.test(content)) {
+  if (/One-Person-Lab-Full-[^"'\s]+-mac-arm64\.dmg/i.test(content)) {
     throw new Error('Standard and Nightly casks must not reference Full first-install assets.');
   }
 }
@@ -155,7 +160,7 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
   ].join('\n');
 }
 
-function renderCask({ channel, version, checksum, manifestUrl }) {
+function renderCask({ channel, version, checksum, manifestUrl, dependsOnOplFormula }) {
   const isFull = channel === 'full';
   const token = channel === 'nightly' ? 'one-person-lab-nightly' : isFull ? 'one-person-lab-full' : 'one-person-lab';
   return [
@@ -183,6 +188,7 @@ function renderCask({ channel, version, checksum, manifestUrl }) {
           '',
         ]),
     `  conflicts_with cask: [${(caskConflictMap[token] ?? []).map((conflict) => `"${conflict}"`).join(', ')}]`,
+    ...(dependsOnOplFormula ? ['  depends_on formula: "opl"'] : []),
     '  depends_on macos: :big_sur',
     '  depends_on arch: :arm64',
     '',
@@ -206,6 +212,9 @@ function renderCask({ channel, version, checksum, manifestUrl }) {
 
 function main() {
   const options = parseArgs(process.argv.slice(2));
+  if (options.dependsOnOplFormula && !fs.existsSync(path.join('Formula', 'opl.rb'))) {
+    throw new Error('--with-opl-formula requires an already generated Formula/opl.rb.');
+  }
   const tag = resolveTag(options);
   const version = versionFromTag(tag);
   if ((options.channel === 'stable' || options.channel === 'full') && /nightly/i.test(version)) {
@@ -237,8 +246,8 @@ function main() {
     ? `One-Person-Lab-Full-${version}-mac-arm64.dmg`
     : `One-Person-Lab-${version}-mac-arm64.dmg`;
   const dmgAsset = assetByName(assets, dmgName);
-  const manifestAsset = assetByName(assets, options.channel === 'full' ? 'full-package-manifest.json' : 'latest-arm64-mac.yml');
-  assetByName(assets, options.channel === 'full' ? 'full-local-authorization-policy.json' : 'standard-local-authorization-policy.json');
+  const manifestAsset = assetByName(assets, options.channel === 'full' ? 'opl-release-manifest.json' : 'latest-arm64-mac.yml');
+  assetByName(assets, 'standard-local-authorization-policy.json');
   const checksum = digestOf(dmgAsset);
   const manifestUrl = `https://github.com/${appRepo}/releases/download/${tag}/${manifestAsset.name}`;
   const caskPath = options.channel === 'nightly'
@@ -251,6 +260,7 @@ function main() {
     version,
     checksum,
     manifestUrl,
+    dependsOnOplFormula: options.dependsOnOplFormula,
   });
   validateRenderedCask({ channel: options.channel, content });
   fs.writeFileSync(caskPath, content, 'utf8');

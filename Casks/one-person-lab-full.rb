@@ -17,11 +17,14 @@ cask "one-person-lab-full" do
   depends_on arch: :arm64
 
   # OPL_HOMEBREW_BOUNDARY_START
-  # channel: stable
+  # channel: full
   # package_kind: app_full_first_install
   # version: 26.7.7
   # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.7/opl-release-manifest.json
   # checksum: sha256:4e0f403c48fb0397099758c30423a4ee5908851e0a9e885537cdbb71603f96ed
+  # downstream_mirror_only: true
+  # release_truth_authority: app_release
+  # failure_feedback_owner: app_release_operator
   # full_first_install_allowed: true
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
@@ -32,6 +35,7 @@ cask "one-person-lab-full" do
   # agent_pack_homebrew_allowed: false
   # agent_pack_activation_owner: app_cli_managed_background_maintenance
   # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly
+  # must_not_define_release_currentness: true
   # must_not_write_user_codex_state: true
   # must_not_define_agent_semantics: true
   # OPL_HOMEBREW_BOUNDARY_END
