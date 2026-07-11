@@ -19,6 +19,13 @@ const formulaDir = path.join(root, 'Formula');
 assert.equal(fs.existsSync(path.join(formulaDir, 'opl.rb')), false, 'Formula publication is pending');
 assert.match(read('README.md'), /Formula publication is not yet public/);
 assert.doesNotMatch(read('README.md'), /brew install opl/);
+assert.match(read('README.md'), /canonical\n`opl-framework` package/);
+assert.match(read('README.md'), /production\ndependencies, including Temporal/);
+assert.match(read('README.md'), /does not install the desktop App or any\nAgent package/);
+assert.match(read('README.md'), /does not create or reconcile user\nworkspace state/);
+assert.match(read('README.md'), /opl install --headless --skip-modules/);
+assert.match(read('README.md'), /Homebrew-owned base update stays on the Homebrew channel/);
+assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
 
 for (const cask of [
   'Casks/one-person-lab.rb',
@@ -89,8 +96,20 @@ assert.match(renderedFormula, /version "26\.7\.10"/);
 assert.match(renderedFormula, new RegExp(`framework_source_head: ${'1'.repeat(40)}`));
 assert.match(renderedFormula, new RegExp(`framework_package_archive_sha256: ${'2'.repeat(64)}`));
 assert.match(renderedFormula, new RegExp(`sha256 "${'3'.repeat(64)}"`));
-assert.match(renderedFormula, /system npm, "install"/);
+assert.match(renderedFormula, /installed_package: opl-framework/);
+assert.match(renderedFormula, /carrier_scope: framework_cli_runtime_and_production_dependencies/);
+assert.match(renderedFormula, /temporal_dependency_scope: framework_production_dependency/);
+assert.match(renderedFormula, /app_payload_installed: false/);
+assert.match(renderedFormula, /agent_payload_installed: false/);
+assert.match(renderedFormula, /user_state_initialized_during_brew_install: false/);
+assert.match(renderedFormula, /first_user_state_reconcile: opl install --headless --skip-modules/);
+assert.match(renderedFormula, /ENV\["npm_config_cache"\] = buildpath\/"\.npm-cache"/);
+assert.match(renderedFormula, /system npm, "install", "--omit=dev", "--ignore-scripts"/);
+assert.doesNotMatch(renderedFormula, /system npm, "prune"/);
 assert.doesNotMatch(renderedFormula, /system npm, "ci"/);
+assert.match(renderedFormula, /def caveats/);
+assert.match(renderedFormula, /opl install --headless --skip-modules/);
+assert.doesNotMatch(renderedFormula, /system .*"opl", "install"/);
 const atomicFormulaTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-atomic-formula-'));
 const atomicFormulaPath = path.join(atomicFormulaTmp, 'Formula/opl.rb');
 writeFormulaAtomically(atomicFormulaPath, renderedFormula);

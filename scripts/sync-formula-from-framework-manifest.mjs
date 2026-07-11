@@ -135,16 +135,33 @@ export function renderFormula(metadata) {
   # framework_source_head: ${metadata.headSha}
   # framework_package_archive_sha256: ${metadata.packageSha256}
   # homebrew_transport_archive_sha256: ${metadata.transportSha256}
+  # installed_package: opl-framework
+  # carrier_scope: framework_cli_runtime_and_production_dependencies
+  # temporal_dependency_scope: framework_production_dependency
   # app_payload_installed: false
+  # agent_payload_installed: false
   # agent_specific_formula_allowed: false
+  # user_state_initialized_during_brew_install: false
+  # first_user_state_reconcile: opl install --headless --skip-modules
   # OPL_HOMEBREW_FORMULA_BOUNDARY_END
 
   def install
     npm = formula_opt_bin("node@22")/"npm"
-    system npm, "install", "--no-audit", "--no-fund"
-    system npm, "prune", "--omit=dev", "--no-audit", "--no-fund"
+    ENV["npm_config_cache"] = buildpath/".npm-cache"
+    ENV["npm_config_update_notifier"] = "false"
+    system npm, "install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
     libexec.install Dir["*"]
     bin.install_symlink libexec/"bin/opl"
+  end
+
+  def caveats
+    <<~EOS
+      This Formula installs only the OPL Framework, CLI, runtime, and their
+      production dependencies. It does not install the OPL App or any Agent.
+
+      Initialize or reconcile user state explicitly after installation:
+        opl install --headless --skip-modules
+    EOS
   end
 
   test do
