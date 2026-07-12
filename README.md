@@ -12,7 +12,7 @@ and validation plumbing, but `opl` Formula publication is not yet public.
 The tap does not own Framework or App release truth. Formula sync is fail-closed
 until the Framework package authority publishes a matching
 `framework_core.homebrew_formula` projection in
-`ghcr.io/gaofeng21cn/one-person-lab-manifest:latest`. Once present, the sync
+`ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable`. Once present, the sync
 atomically generates the sole allowed `Formula/opl.rb` from the approved version,
 source head, and immutable archive URL, computes the transport checksum from the
 downloaded bytes, and adds the same-tap Formula dependency to all three casks.
