@@ -1,6 +1,6 @@
 cask "one-person-lab" do
   version "26.7.12"
-  sha256 "d3a6658d94274ac2d344169b2c7df8f95eaf3906ebb70899b4bfcda0a72c3c70"
+  sha256 "628c5eb3d439760f7dc0779920d0d8d062fa2e9f27d4c9046c99a846615f7c13"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
   name "One Person Lab"
@@ -21,16 +21,16 @@ cask "one-person-lab" do
   # package_kind: app_standard
   # version: 26.7.12
   # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.12/latest-arm64-mac.yml
-  # checksum: sha256:d3a6658d94274ac2d344169b2c7df8f95eaf3906ebb70899b4bfcda0a72c3c70
+  # checksum: sha256:628c5eb3d439760f7dc0779920d0d8d062fa2e9f27d4c9046c99a846615f7c13
   # full_first_install_allowed: false
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
   # cohort: standard_desktop_homebrew_distribution
   # standard_updater_visible: true
-  # modules_payload_allowed: false
+  # opl_packages_payload_allowed: false
   # bundled_full_runtime_payload_allowed: false
-  # agent_pack_homebrew_allowed: false
-  # agent_pack_activation_owner: app_cli_managed_background_maintenance
+  # opl_packages_homebrew_allowed: false
+  # opl_packages_lifecycle_owner: one-person-lab
   # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly
   # must_not_write_user_codex_state: true
   # must_not_define_agent_semantics: true
