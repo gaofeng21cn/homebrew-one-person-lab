@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const defaultManifestImage = 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest';
 const frameworkRepo = 'https://github.com/gaofeng21cn/one-person-lab.git';
-const formulaPackageName = 'opl-framework';
+const formulaName = 'opl';
+const internalNpmPackageName = 'opl-framework';
 const shaPattern = /^[a-f0-9]{40}$/;
 const sha256Pattern = /^[a-f0-9]{64}$/;
 
@@ -29,6 +30,9 @@ function parseArgs(argv) {
   }
   if (options.manifestFile && argv.includes('--manifest-image')) {
     throw new Error('--manifest-file and --manifest-image are mutually exclusive.');
+  }
+  if (path.basename(options.formulaPath) !== `${formulaName}.rb`) {
+    throw new Error(`The only allowed Formula output is ${formulaName}.rb.`);
   }
   return options;
 }
@@ -82,8 +86,8 @@ export function formulaMetadataFromManifest(manifest) {
   const headSha = String(framework.source_git?.head_sha ?? '').trim().toLowerCase();
   const packageSha256 = String(framework.source_archive?.sha256 ?? '').trim().toLowerCase();
   const archiveUrl = `https://github.com/gaofeng21cn/one-person-lab/archive/${headSha}.tar.gz`;
-  if (projection.package_name !== formulaPackageName) {
-    throw new Error(`homebrew_formula package_name must be ${formulaPackageName}.`);
+  if (projection.formula_name !== formulaName || projection.package_name !== formulaName) {
+    throw new Error(`homebrew_formula formula_name and package_name must both be ${formulaName}.`);
   }
   if (!version || version !== String(manifest.opl_version ?? '').replace(/^v/, '')) {
     throw new Error('Framework version must match the OPL release manifest version.');
@@ -104,6 +108,8 @@ export function formulaMetadataFromManifest(manifest) {
     throw new Error('homebrew_formula sha256_source must be tap_sync_download_and_hash.');
   }
   return {
+    formulaName: projection.formula_name,
+    packageName: projection.package_name,
     version,
     headSha,
     packageSha256,
@@ -135,14 +141,19 @@ export function renderFormula(metadata) {
   # framework_source_head: ${metadata.headSha}
   # framework_package_archive_sha256: ${metadata.packageSha256}
   # homebrew_transport_archive_sha256: ${metadata.transportSha256}
-  # installed_package: opl-framework
+  # formula_identity: ${formulaName}
+  # internal_npm_package: ${internalNpmPackageName}
+  # internal_installation_implementation_only: true
   # carrier_scope: framework_cli_runtime_and_production_dependencies
   # temporal_dependency_scope: framework_production_dependency
   # app_payload_installed: false
-  # agent_payload_installed: false
-  # agent_specific_formula_allowed: false
+  # opl_packages_payload_installed: false
+  # package_specific_formula_allowed: false
+  # package_specific_cask_allowed: false
+  # opl_packages_lifecycle_owner: opl_cli
+  # opl_packages_lifecycle_command: opl packages
   # user_state_initialized_during_brew_install: false
-  # first_user_state_reconcile: opl install --headless --skip-modules
+  # first_user_state_reconcile: opl install --headless --skip-packages
   # OPL_HOMEBREW_FORMULA_BOUNDARY_END
 
   def install
@@ -157,10 +168,10 @@ export function renderFormula(metadata) {
   def caveats
     <<~EOS
       This Formula installs only the OPL Framework, CLI, runtime, and their
-      production dependencies. It does not install the OPL App or any Agent.
+      production dependencies. It does not install the OPL App or OPL Packages.
 
       Initialize or reconcile user state explicitly after installation:
-        opl install --headless --skip-modules
+        opl install --headless --skip-packages
     EOS
   end
 
@@ -193,6 +204,9 @@ async function main() {
   writeFormulaAtomically(options.formulaPath, content);
   console.log(JSON.stringify({
     formula: options.formulaPath,
+    formula_name: metadata.formulaName,
+    package_name: metadata.packageName,
+    internal_npm_package: internalNpmPackageName,
     version: metadata.version,
     framework_source_head: metadata.headSha,
     framework_package_archive_sha256: metadata.packageSha256,

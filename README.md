@@ -1,6 +1,6 @@
 # One Person Lab Homebrew Tap
 
-Homebrew tap for the One Person Lab desktop App, with OPL Formula publication pending.
+Homebrew tap for OPL Base and the One Person Lab App, with OPL Formula publication pending.
 
 ## Public Role Boundary
 
@@ -20,11 +20,12 @@ Until then, no Formula or Cask Formula dependency is published.
 
 ## Aligned Installation Semantics
 
-The future `opl` Formula is the headless base carrier. It installs the canonical
-`opl-framework` package, the `opl` CLI/runtime, and all Framework production
-dependencies, including Temporal. It does not install the desktop App or any
-Agent package. Formula installation also does not create or reconcile user
-workspace state and does not run package lifecycle scripts.
+The future `opl` Formula is the headless base carrier. Its internal installation
+implementation uses the `opl-framework` npm package to install the `opl`
+CLI/runtime and all Framework production dependencies, including Temporal.
+`opl-framework` is not a second public Formula or OPL Package identity. The
+Formula does not install the desktop App or any OPL Package, does not create or
+reconcile user workspace state, and does not run Package lifecycle operations.
 
 After Formula publication, the three App casks depend on that same Formula.
 Installing an App cask therefore installs two independently maintained products:
@@ -33,14 +34,15 @@ Framework reconcile contract; a Formula-only CLI installation performs the same
 initialization explicitly with:
 
 ```bash
-opl install --headless --skip-modules
+opl install --headless --skip-packages
 ```
 
-Agent packages remain OPL modules managed after base initialization. They are
-not Homebrew Formulae and are not embedded into the base Formula. The App is a
-GUI control surface over the same Framework operations: it may coordinate base
-and Agent updates, but a Homebrew-owned base update stays on the Homebrew channel
-instead of creating a second private Framework installation.
+OPL Packages are independently versioned external packages managed after base
+initialization by `opl packages`. They are not Homebrew Formulae or Casks and
+are not embedded into the Base Formula. The App is a GUI control surface over
+the same Framework operations: it may coordinate Base and Package updates, but
+a Homebrew-owned Base update stays on the Homebrew channel instead of creating
+a second private Framework installation.
 
 Direct DMG installation has the same product semantics. When no system Formula
 is available, the App invokes the Framework installer into its managed root and
@@ -61,6 +63,11 @@ Nightly builds are opt-in:
 ```bash
 brew install --cask one-person-lab-nightly
 ```
+
+New stable releases use `YY.M.D`. New Nightly releases use the immutable
+`YY.M.D-nightly.<run_id>.<attempt>` form. Previously mirrored releases are not
+rewritten; the next successful sync advances the Cask to a matching published
+App release with release-owned assets and digests.
 
 Complete first-install package:
 
@@ -94,7 +101,9 @@ duplicating the active Framework carrier.
 If the App reports that setup or repair is needed, follow the in-app prompt.
 
 The `one-person-lab-full` cask is an explicit stable first-install surface for
-the larger Full DMG. It stays outside standard updater metadata. MAS/MAG/RCA/OMA
-agent packs are prepared by App/CLI maintenance after the App is installed. This
-tap intentionally does not publish `one-person-lab-modules` or agent-specific
-formulae.
+the larger Full DMG. It stays outside standard updater metadata. Package
+material carried inside that App-owned asset remains governed by OPL Package
+lifecycle receipts after installation; Homebrew does not version or mutate it.
+This tap permits only Formula `opl` plus the three App Casks. It never publishes
+Package-specific Formulae or Casks for MAS, MAG, RCA, OMA, BookForge,
+MAS ScholarSkills, or OPL Flow.

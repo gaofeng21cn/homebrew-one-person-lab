@@ -18,7 +18,7 @@ jobs:
           set -euo pipefail
           formula_files="$(find Formula -type f -name '*.rb' 2>/dev/null | sort || true)"
           if [ -n "$formula_files" ] && [ "$formula_files" != "Formula/opl.rb" ]; then
-            echo "::error::This tap may publish only Formula/opl.rb and no agent-specific formulae."
+            echo "::error::This tap may publish only Formula/opl.rb and no Package-specific Formulae."
             exit 1
           fi
           if [ -f Formula/opl.rb ]; then
@@ -33,10 +33,12 @@ jobs:
             echo "::error::This tap may publish only the stable, nightly, and Full App casks."
             exit 1
           fi
-          if grep -R "cask \"one-person-lab-modules\\|url .*one-person-lab-modules" Casks; then
-            echo "::error::This tap must not publish module or agent-pack Homebrew targets."
-            exit 1
-          fi
+          for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb; do
+            grep -q '# homebrew_allowed_software_objects: opl_base,opl_app' "$cask" || { echo "::error::$cask must restrict Homebrew to Base and App."; exit 1; }
+            grep -q '# opl_packages_lifecycle_command: opl packages' "$cask" || { echo "::error::$cask must route Package lifecycle through opl packages."; exit 1; }
+            grep -q '# package_specific_formula_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Formulae."; exit 1; }
+            grep -q '# package_specific_cask_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Casks."; exit 1; }
+          done
           if grep -R "One-Person-Lab-Full" Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
             echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1

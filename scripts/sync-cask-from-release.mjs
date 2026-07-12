@@ -10,8 +10,10 @@ const failureRoute = [
   `Route this failure to the App release operator/authority for ${appRepo}; fix or republish the App release, then rerun tap sync.`,
   'The tap must not define release truth/currentness or invent tap-local status semantics.',
 ].join('\n');
-const appReleaseFailurePattern = /No published nightly release found|Latest stable release|Missing release asset|must expose a sha256 digest|Draft releases|Stable cask updates must read|Nightly cask updates must read/;
+const appReleaseFailurePattern = /No published nightly release found|Latest stable release|Missing release asset|must expose a sha256 digest|Draft releases|Stable cask updates must (?:read|use)|Nightly cask updates must (?:read|use)/;
 const sha256Pattern = /^sha256:(?<hash>[a-f0-9]{64})$/i;
+const stableVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])$/;
+const nightlyVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly\.[1-9][0-9]*\.[1-9][0-9]*$/;
 const caskConflictMap = {
   'one-person-lab': ['one-person-lab-full', 'one-person-lab-nightly'],
   'one-person-lab-nightly': ['one-person-lab', 'one-person-lab-full'],
@@ -67,9 +69,9 @@ function latestNightlyTag() {
   const release = releases.find((candidate) => (
     candidate.isPrerelease
     && !candidate.isDraft
-    && /nightly/i.test(candidate.tagName)
+    && nightlyVersionPattern.test(versionFromTag(candidate.tagName))
   ));
-  if (!release) throw new Error('No published nightly release found.');
+  if (!release) throw new Error('No published nightly release found with YY.M.D-nightly.<run_id>.<attempt>.');
   return release.tagName;
 }
 
@@ -148,11 +150,15 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
     '  # publishes_or_pushes_remote: false',
     `  # cohort: ${isFull ? 'full_first_install_homebrew_distribution' : 'standard_desktop_homebrew_distribution'}`,
     `  # standard_updater_visible: ${isFull ? 'false' : 'true'}`,
-    '  # modules_payload_allowed: false',
     `  # bundled_full_runtime_payload_allowed: ${isFull ? 'true' : 'false'}`,
-    '  # agent_pack_homebrew_allowed: false',
-    '  # agent_pack_activation_owner: app_cli_managed_background_maintenance',
-    '  # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly',
+    '  # homebrew_allowed_software_objects: opl_base,opl_app',
+    '  # opl_packages_lifecycle_owned_by_homebrew: false',
+    '  # opl_packages_lifecycle_owner: opl_cli',
+    '  # opl_packages_lifecycle_command: opl packages',
+    '  # package_specific_formula_allowed: false',
+    '  # package_specific_cask_allowed: false',
+    '  # forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow',
+    '  # forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow',
     '  # must_not_define_release_currentness: true',
     '  # must_not_write_user_codex_state: true',
     '  # must_not_define_agent_semantics: true',
@@ -200,7 +206,7 @@ function renderCask({ channel, version, checksum, manifestUrl, dependsOnOplFormu
           '',
           '  caveats <<~EOS',
           '    This cask installs the complete first-install package. After launch,',
-          '    One Person Lab manages runtime, modules, and agent exposure through',
+          '    One Person Lab manages runtime, Packages, and Agent exposure through',
           '    the App/CLI; Full assets stay outside standard updater metadata.',
           '  EOS',
         ]
@@ -217,11 +223,11 @@ function main() {
   }
   const tag = resolveTag(options);
   const version = versionFromTag(tag);
-  if ((options.channel === 'stable' || options.channel === 'full') && /nightly/i.test(version)) {
-    throw new Error('Stable cask updates must not use nightly releases.');
+  if ((options.channel === 'stable' || options.channel === 'full') && !stableVersionPattern.test(version)) {
+    throw new Error('Stable cask updates must use YY.M.D without a same-day suffix.');
   }
-  if (options.channel === 'nightly' && !/nightly/i.test(version)) {
-    throw new Error('Nightly cask updates must use nightly releases.');
+  if (options.channel === 'nightly' && !nightlyVersionPattern.test(version)) {
+    throw new Error('Nightly cask updates must use YY.M.D-nightly.<run_id>.<attempt>.');
   }
 
   const release = ghJson([

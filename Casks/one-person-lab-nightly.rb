@@ -29,11 +29,15 @@ cask "one-person-lab-nightly" do
   # publishes_or_pushes_remote: false
   # cohort: standard_desktop_homebrew_distribution
   # standard_updater_visible: true
-  # modules_payload_allowed: false
   # bundled_full_runtime_payload_allowed: false
-  # agent_pack_homebrew_allowed: false
-  # agent_pack_activation_owner: app_cli_managed_background_maintenance
-  # forbidden_module_formulae: one-person-lab-modules,one-person-lab-modules-nightly
+  # homebrew_allowed_software_objects: opl_base,opl_app
+  # opl_packages_lifecycle_owned_by_homebrew: false
+  # opl_packages_lifecycle_owner: opl_cli
+  # opl_packages_lifecycle_command: opl packages
+  # package_specific_formula_allowed: false
+  # package_specific_cask_allowed: false
+  # forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
+  # forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
   # must_not_define_release_currentness: true
   # must_not_write_user_codex_state: true
   # must_not_define_agent_semantics: true
