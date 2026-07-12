@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const defaultManifestImage = 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest';
+const defaultManifestImage = 'ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable';
 const frameworkRepo = 'https://github.com/gaofeng21cn/one-person-lab.git';
 const formulaName = 'opl';
 const internalNpmPackageName = 'opl-framework';

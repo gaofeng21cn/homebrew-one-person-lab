@@ -44,6 +44,14 @@ assert.match(read('README.md'), /Homebrew-owned Base update stays on the Homebre
 assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
 assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
 assert.match(read('README.md'), /`YY\.M\.D-nightly\.<run_id>\.<attempt>`/);
+assert.match(
+  read('scripts/sync-formula-from-framework-manifest.mjs'),
+  /one-person-lab-manifest:latest-stable/,
+);
+assert.doesNotMatch(
+  read('scripts/sync-formula-from-framework-manifest.mjs'),
+  /one-person-lab-manifest:latest(?!-stable)/,
+);
 
 for (const cask of [
   'Casks/one-person-lab.rb',
