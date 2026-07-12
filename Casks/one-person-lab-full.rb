@@ -8,8 +8,7 @@ cask "one-person-lab-full" do
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
 
   livecheck do
-    url "https://github.com/gaofeng21cn/one-person-lab-app/releases/latest"
-    regex(%r{/releases/tag/v?(\d+(?:\.\d+)*)}i)
+    skip "Full casks track explicitly published Full cohorts through App release automation"
   end
 
   conflicts_with cask: ["one-person-lab", "one-person-lab-nightly"]

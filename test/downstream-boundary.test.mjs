@@ -52,6 +52,12 @@ for (const cask of [
 ]) {
   assert.doesNotMatch(read(cask), /depends_on formula: "opl"/);
 }
+assert.match(
+  read('Casks/one-person-lab-full.rb'),
+  /skip "Full casks track explicitly published Full cohorts through App release automation"/,
+);
+assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
+assert.doesNotMatch(read('.github/workflows/tap-check.yml'), /--no-signing/);
 
 const manifestFixture = {
   opl_version: '26.7.10',
@@ -315,6 +321,8 @@ assert.equal(fullSuccess.status, 0, fullSuccess.stderr);
 const generatedFull = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8');
 assert.match(generatedFull, /# channel: full/);
 assert.match(generatedFull, /opl-release-manifest\.json/);
+assert.match(generatedFull, /skip "Full casks track explicitly published Full cohorts through App release automation"/);
+assert.doesNotMatch(generatedFull, /releases\/latest/);
 assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
 
 const nightlyVersion = '26.7.12-nightly.123456789.2';

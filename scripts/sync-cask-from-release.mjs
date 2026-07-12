@@ -179,7 +179,7 @@ function renderCask({ channel, version, checksum, manifestUrl, dependsOnOplFormu
     `  desc "${isFull ? 'Complete first-install package for One Person Lab' : 'AI-first desktop research and agent orchestration app'}"`,
     '  homepage "https://github.com/gaofeng21cn/one-person-lab-app"',
     '',
-    ...(channel === 'stable' || isFull
+    ...(channel === 'stable'
       ? [
           '  livecheck do',
           '    url "https://github.com/gaofeng21cn/one-person-lab-app/releases/latest"',
@@ -189,7 +189,9 @@ function renderCask({ channel, version, checksum, manifestUrl, dependsOnOplFormu
         ]
       : [
           '  livecheck do',
-          '    skip "Nightly casks track prerelease cohorts through tap automation"',
+          `    skip "${isFull
+            ? 'Full casks track explicitly published Full cohorts through App release automation'
+            : 'Nightly casks track prerelease cohorts through tap automation'}"`,
           '  end',
           '',
         ]),
