@@ -121,7 +121,7 @@ function releaseReadback(tag) {
   return release;
 }
 
-function actionsRunReadback(runId, expectedAppSha, label) {
+function actionsRunReadback(runId, expectedAppSha, label, { requireSuccess }) {
   const run = ghJson([
     'run', 'view', runId,
     '--repo', appRepo,
@@ -133,8 +133,11 @@ function actionsRunReadback(runId, expectedAppSha, label) {
   if (run.headSha !== expectedAppSha) {
     throw new Error(`${label} must use frozen App SHA ${expectedAppSha}, got ${run.headSha || '(missing)'}.`);
   }
-  if (run.status !== 'completed' || run.conclusion !== 'success') {
-    throw new Error(`${label} must be completed successfully before Stable distribution.`);
+  if (run.status !== 'completed') {
+    throw new Error(`${label} must be completed before Stable distribution.`);
+  }
+  if (requireSuccess && run.conclusion !== 'success') {
+    throw new Error(`${label} must complete successfully before Stable distribution.`);
   }
   return {
     run_id: runId,
@@ -239,8 +242,18 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
 export function prepareStableDistribution(options) {
   assertInputs(options);
   const release = releaseReadback(options.releaseTag);
-  const sourceReleaseRun = actionsRunReadback(options.sourceReleaseRunId, options.appSha, 'Source release');
-  const fullVmRun = actionsRunReadback(options.fullVmRunId, options.appSha, 'Full clean-VM');
+  const sourceReleaseRun = actionsRunReadback(
+    options.sourceReleaseRunId,
+    options.appSha,
+    'Source release',
+    { requireSuccess: false },
+  );
+  const fullVmRun = actionsRunReadback(
+    options.fullVmRunId,
+    options.appSha,
+    'Full clean-VM',
+    { requireSuccess: true },
+  );
   return buildPlan(options, release, sourceReleaseRun, fullVmRun);
 }
 

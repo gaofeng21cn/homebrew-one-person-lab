@@ -49,7 +49,14 @@ const assets = [
   ['opl-release-manifest.json', 'e'],
 ].map(([name, digit]) => ({ name, digest: `sha256:${digit.repeat(64)}` }));
 
-function mockGh(rootDir, { isLatest = false, releaseAssets = assets } = {}) {
+function mockGh(rootDir, {
+  isLatest = false,
+  releaseAssets = assets,
+  sourceRunStatus = 'completed',
+  sourceRunConclusion = 'success',
+  fullVmRunStatus = 'completed',
+  fullVmRunConclusion = 'success',
+} = {}) {
   const bin = path.join(rootDir, 'bin');
   fs.mkdirSync(bin, { recursive: true });
   const release = JSON.stringify({
@@ -78,7 +85,14 @@ if [ "$1 $2" = "release list" ]; then
 fi
 if [ "$1 $2" = "run view" ]; then
   run_id="$3"
-  printf '{"databaseId":%s,"headSha":"%s","status":"completed","conclusion":"success","url":"https://github.example/runs/%s"}' "$run_id" "${'3'.repeat(40)}" "$run_id"
+  if [ "$run_id" = "29220000001" ]; then
+    status="${sourceRunStatus}"
+    conclusion="${sourceRunConclusion}"
+  else
+    status="${fullVmRunStatus}"
+    conclusion="${fullVmRunConclusion}"
+  fi
+  printf '{"databaseId":%s,"headSha":"%s","status":"%s","conclusion":"%s","url":"https://github.example/runs/%s"}' "$run_id" "${'3'.repeat(40)}" "$status" "$conclusion" "$run_id"
   exit 0
 fi
 echo "unexpected gh args: $*" >&2
@@ -156,6 +170,7 @@ assert.equal(receipt.status, 'verified');
 assert.equal(receipt.release.repo, 'gaofeng21cn/one-person-lab-app');
 assert.equal(receipt.release.public, true);
 assert.equal(receipt.release.latest, false);
+assert.equal(receipt.release.source_release_run.conclusion, 'success');
 assert.equal(receipt.cohort.app_sha, '3'.repeat(40));
 assert.equal(receipt.full_vm.run_id, '29220000002');
 assert.equal(receipt.tap.repo, 'gaofeng21cn/homebrew-one-person-lab');
@@ -186,6 +201,47 @@ failedVmArgs[failedVmArgs.indexOf('passed')] = 'failed';
 const failedVm = runPrepare(failedVmRoot, mockGh(failedVmRoot), failedVmArgs);
 assert.notEqual(failedVm.status, 0);
 assert.match(failedVm.stderr, /full_vm_result must be passed/);
+
+const failedSourceRoot = createTapFixture('opl-stable-distribution-failed-source-');
+const failedSource = runPrepare(failedSourceRoot, mockGh(failedSourceRoot, {
+  sourceRunConclusion: 'failure',
+}));
+assert.equal(failedSource.status, 0, failedSource.stderr);
+const failedSourcePlan = JSON.parse(fs.readFileSync(path.join(failedSourceRoot, 'plan.json'), 'utf8'));
+assert.equal(failedSourcePlan.release.source_release_run.status, 'completed');
+assert.equal(failedSourcePlan.release.source_release_run.conclusion, 'failure');
+assert.equal(failedSourcePlan.full_vm.run_readback.conclusion, 'success');
+const failedSourceReceiptResult = spawnSync(process.execPath, [
+  path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs'),
+  '--plan', path.join(failedSourceRoot, 'plan.json'),
+  '--tap-commit', '8'.repeat(40),
+  '--annotated-tag', `stable-distribution/v${version}`,
+  '--output', path.join(failedSourceRoot, 'receipt.json'),
+], {
+  cwd: failedSourceRoot,
+  encoding: 'utf8',
+  env: { ...process.env, OPL_HOMEBREW_TAP_ROOT: failedSourceRoot },
+});
+assert.equal(failedSourceReceiptResult.status, 0, failedSourceReceiptResult.stderr);
+assert.equal(
+  JSON.parse(fs.readFileSync(path.join(failedSourceRoot, 'receipt.json'), 'utf8')).release.source_release_run.conclusion,
+  'failure',
+);
+
+const runningSourceRoot = createTapFixture('opl-stable-distribution-running-source-');
+const runningSource = runPrepare(runningSourceRoot, mockGh(runningSourceRoot, {
+  sourceRunStatus: 'in_progress',
+  sourceRunConclusion: '',
+}));
+assert.notEqual(runningSource.status, 0);
+assert.match(runningSource.stderr, /Source release must be completed before Stable distribution/);
+
+const failedFullVmRunRoot = createTapFixture('opl-stable-distribution-failed-full-vm-run-');
+const failedFullVmRun = runPrepare(failedFullVmRunRoot, mockGh(failedFullVmRunRoot, {
+  fullVmRunConclusion: 'failure',
+}));
+assert.notEqual(failedFullVmRun.status, 0);
+assert.match(failedFullVmRun.stderr, /Full clean-VM must complete successfully before Stable distribution/);
 
 fs.appendFileSync(path.join(successRoot, receipt.tap.standard_cask.path), '# changed after plan\n');
 const staleCaskReceipt = spawnSync(process.execPath, [

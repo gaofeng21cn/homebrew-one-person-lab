@@ -69,6 +69,7 @@ export function finalizeStableDistributionReceipt(plan, options) {
       public: true,
       latest: false,
       source_release_run_id: plan.release.source_release_run_id,
+      source_release_run: plan.release.source_release_run,
       assets: plan.release.assets,
     },
     cohort: plan.cohort,
