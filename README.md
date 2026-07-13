@@ -1,33 +1,32 @@
 # One Person Lab Homebrew Tap
 
-Homebrew tap for OPL Base and the One Person Lab App, with OPL Formula publication pending.
+Homebrew tap for OPL Base and the One Person Lab App.
 
 ## Public Role Boundary
 
 This repository is a downstream Homebrew distribution tap. The three casks
 mirror App metadata and download targets derived from published
-`gaofeng21cn/one-person-lab-app` releases. The tap contains Formula generation
-and validation plumbing, but `opl` Formula publication is not yet public.
+`gaofeng21cn/one-person-lab-app` releases. The sole Formula identity is `opl`;
+it is materialized only by the formal Stable distribution workflow.
 
-The tap does not own Framework or App release truth. Formula sync is fail-closed
-until the Framework package authority publishes a matching
-`framework_core.homebrew_formula` projection in
-`ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable`. Once present, the sync
-atomically generates the sole allowed `Formula/opl.rb` from the approved version,
-source head, and immutable archive URL, computes the transport checksum from the
-downloaded bytes, and adds the same-tap Formula dependency to all three casks.
-Until then, no Formula or Cask Formula dependency is published.
+The tap does not own Framework or App release truth. Stable Formula sync is
+fail-closed: it reads one immutable Release Set generation and verifies that
+`ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable` has the same digest.
+It then generates `Formula/opl.rb` only from the owner-approved
+`framework_core.homebrew_formula` projection, computes the transport checksum
+from downloaded bytes, and adds the same-tap Formula dependency to all three
+casks in the same atomic distribution commit and receipt.
 
 ## Aligned Installation Semantics
 
-The future `opl` Formula is the headless base carrier. Its internal installation
+The `opl` Formula is the headless base carrier. Its internal installation
 implementation uses the `opl-framework` npm package to install the `opl`
 CLI/runtime and all Framework production dependencies, including Temporal.
 `opl-framework` is not a second public Formula or OPL Package identity. The
 Formula does not install the desktop App or any OPL Package, does not create or
 reconcile user workspace state, and does not run Package lifecycle operations.
 
-After Formula publication, the three App casks depend on that same Formula.
+When published, the three App casks depend on that same Formula.
 Installing an App cask therefore installs two independently maintained products:
 the OPL base carrier and the OPL App GUI. The first App launch invokes the
 Framework reconcile contract; a Formula-only CLI installation performs the same
@@ -70,13 +69,15 @@ rewritten; the next successful sync advances the Cask to a matching published
 App release with release-owned assets and digests.
 
 Formal Stable distribution has one write owner: `.github/workflows/stable-distribution.yml`.
-It requires the App promotion session, exact App/Shell/Framework cohort, source
-release run, and passed Full clean-VM evidence. The workflow derives Standard
-and Full from one public non-latest App release, validates both casks, commits
-them together, and atomically pushes `main` with the immutable annotated tag
+It requires the App promotion session, exact App/Shell/Framework cohort, exact
+Release Set generation and digest, successful source release, and passed Full
+clean-VM evidence. The workflow generates Formula `opl`, derives Standard and
+Full from one public non-latest App release, binds all three casks to the Formula,
+and atomically pushes `main` with the immutable annotated tag
 `stable-distribution/v<version>`. That tag and the Actions artifact carry
-`opl_stable_distribution_receipt.v1`. The scheduled sync workflow writes Nightly
-only; its Stable/Full modes are read-only diagnostics and cannot publish casks.
+`opl_stable_distribution_receipt.v2`. The scheduled sync workflow writes Nightly
+only; when no eligible Nightly exists it completes as a no-op. Its Stable/Full
+modes are read-only diagnostics and cannot publish casks or Formulae.
 
 Complete first-install package:
 
@@ -94,7 +95,8 @@ brew upgrade --cask one-person-lab
 
 The DMG-origin App may use an App-managed private Framework install for launch
 recovery, but Casks do not define Framework version truth. Casks continue to sync
-from published App GitHub Releases while Formula publication remains pending.
+from published App GitHub Releases, while Formula truth remains the exact
+Framework projection inside the promoted Release Set.
 
 This tap is a downstream transport/index mirror only. Formula failures involving
 the package version, source head, or package archive checksum route to the OPL

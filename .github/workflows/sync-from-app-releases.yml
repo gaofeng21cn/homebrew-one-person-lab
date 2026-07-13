@@ -52,26 +52,13 @@ jobs:
             exit 1
           fi
 
-      - name: Sync opl Formula from Framework package manifest when authorized
-        if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if node scripts/sync-formula-from-framework-manifest.mjs; then
-            echo "OPL Formula projection synchronized."
-          elif [ -f Formula/opl.rb ]; then
-            echo "::error::A published opl Formula cannot be preserved silently after Framework projection validation fails."
-            exit 1
-          else
-            echo "::warning::OPL Formula remains unpublished because the Framework manifest has no current owner-approved Homebrew projection."
-          fi
-
       - name: Sync casks from App releases
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           CHANNELS: ${{ steps.channels.outputs.channels }}
           RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          ALLOW_MISSING_NIGHTLY: ${{ github.event_name == 'schedule' }}
         run: |
           set -euo pipefail
           report_app_release_failure() {
@@ -94,6 +81,9 @@ jobs:
             args=(--channel "$channel")
             if [ -n "$RELEASE_TAG" ]; then
               args+=(--release-tag "$RELEASE_TAG")
+            fi
+            if [ "$channel" = "nightly" ] && [ -z "$RELEASE_TAG" ] && [ "$ALLOW_MISSING_NIGHTLY" = "true" ]; then
+              args+=(--allow-missing-nightly)
             fi
             if [ -f Formula/opl.rb ]; then
               args+=(--with-opl-formula)
@@ -170,15 +160,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then
-            echo "No Homebrew cask updates."
+          if git diff --quiet -- Casks/one-person-lab-nightly.rb; then
+            echo "No Homebrew Nightly cask update."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb
-          if [ -f Formula/opl.rb ]; then
-            git add Formula/opl.rb
-          fi
-          git commit -m "Sync OPL Homebrew distributions from release authorities"
+          git add Casks/one-person-lab-nightly.rb
+          git commit -m "Sync OPL Homebrew Nightly cask from App release"
           git push origin HEAD:main

@@ -10,6 +10,13 @@ const tapRoot = process.env.OPL_HOMEBREW_TAP_ROOT
   ? path.resolve(process.env.OPL_HOMEBREW_TAP_ROOT)
   : scriptRoot;
 const gitShaPattern = /^[a-f0-9]{40}$/;
+const shaRefPattern = /^sha256:[a-f0-9]{64}$/;
+const expectedDistributionPaths = [
+  'Formula/opl.rb',
+  'Casks/one-person-lab.rb',
+  'Casks/one-person-lab-full.rb',
+  'Casks/one-person-lab-nightly.rb',
+];
 
 function parseArgs(argv) {
   const options = { plan: '', tapCommit: '', annotatedTag: '', output: '' };
@@ -38,16 +45,19 @@ function fileSha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 }
 
-function validateCask(cask) {
-  const actual = fileSha256(path.join(tapRoot, cask.path));
-  if (actual !== cask.sha256) {
-    throw new Error(`${cask.path} changed after stable distribution preparation.`);
+function validateDistributionFile(file) {
+  if (!expectedDistributionPaths.includes(file?.path)) {
+    throw new Error(`Stable distribution file is outside the admitted Homebrew surface: ${file?.path ?? '(missing)'}.`);
+  }
+  const actual = fileSha256(path.join(tapRoot, file.path));
+  if (actual !== file.sha256) {
+    throw new Error(`${file.path} changed after stable distribution preparation.`);
   }
 }
 
 export function finalizeStableDistributionReceipt(plan, options) {
-  if (plan?.schema !== 'opl_stable_distribution_plan.v1') {
-    throw new Error('Stable distribution plan must use schema opl_stable_distribution_plan.v1.');
+  if (plan?.schema !== 'opl_stable_distribution_plan.v2') {
+    throw new Error('Stable distribution plan must use schema opl_stable_distribution_plan.v2.');
   }
   if (!gitShaPattern.test(options.tapCommit)) {
     throw new Error('tap_commit must be a 40-character lowercase Git SHA.');
@@ -56,12 +66,37 @@ export function finalizeStableDistributionReceipt(plan, options) {
   if (options.annotatedTag !== expectedTag) {
     throw new Error(`annotated_tag must be ${expectedTag}.`);
   }
-  validateCask(plan.tap.standard_cask);
-  validateCask(plan.tap.full_cask);
+  if (plan.release?.public !== true || plan.release?.latest !== false
+    || plan.release?.source_release_run?.conclusion !== 'success'
+    || plan.full_vm?.result !== 'passed'
+    || plan.full_vm?.run_readback?.conclusion !== 'success') {
+    throw new Error('Stable distribution plan no longer carries passed App and Full qualification evidence.');
+  }
+  if (plan.release_set?.generation !== plan.cohort?.release_set_generation
+    || plan.release_set?.manifest_digest !== plan.cohort?.release_set_manifest_digest
+    || plan.release_set?.stable_channel_digest !== plan.release_set?.manifest_digest
+    || !shaRefPattern.test(plan.release_set?.manifest_digest ?? '')
+    || plan.release_set?.formula?.formula_name !== 'opl'
+    || plan.release_set?.formula?.source_head !== plan.cohort?.framework_sha
+    || plan.release_set?.base?.source_commit !== plan.cohort?.framework_sha
+    || plan.release_set?.app?.source_commit !== plan.cohort?.app_sha) {
+    throw new Error('Stable distribution plan no longer identifies one exact Release Set cohort.');
+  }
+  const files = [
+    plan.tap.formula,
+    plan.tap.standard_cask,
+    plan.tap.full_cask,
+    plan.tap.nightly_cask,
+  ];
+  if (new Set(files.map((file) => file?.path)).size !== expectedDistributionPaths.length) {
+    throw new Error('Stable distribution plan must contain each admitted Formula/Cask path exactly once.');
+  }
+  for (const file of files) validateDistributionFile(file);
   return {
-    schema: 'opl_stable_distribution_receipt.v1',
+    schema: 'opl_stable_distribution_receipt.v2',
     status: 'verified',
     stable_session_id: plan.stable_session_id,
+    release_set: plan.release_set,
     release: {
       repo: plan.release.repo,
       tag: plan.release.tag,
@@ -78,10 +113,14 @@ export function finalizeStableDistributionReceipt(plan, options) {
       repo: plan.tap.repo,
       commit_sha: options.tapCommit,
       annotated_tag: options.annotatedTag,
+      formula: plan.tap.formula,
       standard_cask: plan.tap.standard_cask,
       full_cask: plan.tap.full_cask,
+      nightly_cask: plan.tap.nightly_cask,
       validation: {
         boundary_tests: 'passed',
+        formula_style: 'passed',
+        formula_audit: 'passed',
         brew_style: 'passed',
         brew_audit: 'passed',
         atomic_push: 'required_and_annotated_tag_presence_proves_success',

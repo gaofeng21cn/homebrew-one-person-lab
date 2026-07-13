@@ -25,11 +25,16 @@ function parseArgs(argv) {
     channel: '',
     releaseTag: '',
     dependsOnOplFormula: false,
+    allowMissingNightly: false,
   };
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
     if (token === '--with-opl-formula') {
       parsed.dependsOnOplFormula = true;
+      continue;
+    }
+    if (token === '--allow-missing-nightly') {
+      parsed.allowMissingNightly = true;
       continue;
     }
     const value = argv[index + 1];
@@ -48,6 +53,9 @@ function parseArgs(argv) {
   if (!['stable', 'nightly', 'full'].includes(parsed.channel)) {
     throw new Error('--channel must be stable, nightly, or full.');
   }
+  if (parsed.allowMissingNightly && (parsed.channel !== 'nightly' || parsed.releaseTag)) {
+    throw new Error('--allow-missing-nightly is valid only for automatic Nightly discovery.');
+  }
   return parsed;
 }
 
@@ -62,7 +70,7 @@ function ghJson(args) {
   return JSON.parse(execFileSync('gh', args, { encoding: 'utf8' }));
 }
 
-function latestNightlyTag() {
+function latestNightlyTag({ allowMissingNightly }) {
   const releases = ghJson([
     'release',
     'list',
@@ -78,8 +86,9 @@ function latestNightlyTag() {
     && !candidate.isDraft
     && nightlyVersionPattern.test(versionFromTag(candidate.tagName))
   ));
-  if (!release) throw new Error('No published nightly release found with YY.M.D-nightly.<run_id>.<attempt>.');
-  return release.tagName;
+  if (release) return release.tagName;
+  if (allowMissingNightly) return null;
+  throw new Error('No published nightly release found with YY.M.D-nightly.<run_id>.<attempt>.');
 }
 
 function resolveTag(options) {
@@ -98,7 +107,7 @@ function resolveTag(options) {
     }
     return release.tagName;
   }
-  return latestNightlyTag();
+  return latestNightlyTag(options);
 }
 
 function assetByName(assets, name) {
@@ -231,6 +240,14 @@ function main() {
     throw new Error('--with-opl-formula requires an already generated Formula/opl.rb.');
   }
   const tag = resolveTag(options);
+  if (!tag) {
+    console.log(JSON.stringify({
+      status: 'no_op',
+      channel: 'nightly',
+      reason: 'no_eligible_published_prerelease',
+    }, null, 2));
+    return;
+  }
   const version = versionFromTag(tag);
   if ((options.channel === 'stable' || options.channel === 'full') && !stableVersionPattern.test(version)) {
     throw new Error('Stable cask updates must use YY.M.D without a same-day suffix.');
@@ -284,6 +301,7 @@ function main() {
   fs.writeFileSync(caskPath, content, 'utf8');
 
   console.log(JSON.stringify({
+    status: 'rendered',
     channel: options.channel,
     tag,
     version,

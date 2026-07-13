@@ -6,7 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   formulaMetadataFromManifest,
+  parseGhcrImage,
   renderFormula,
+  validateRemoteManifestBinding,
   writeFormulaAtomically,
 } from '../scripts/sync-formula-from-framework-manifest.mjs';
 
@@ -16,7 +18,7 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 assert.match(read('.gitignore'), /^\.worktrees\/$/m);
 
 const formulaDir = path.join(root, 'Formula');
-assert.equal(fs.existsSync(path.join(formulaDir, 'opl.rb')), false, 'Formula publication is pending');
+const formulaPublished = fs.existsSync(path.join(formulaDir, 'opl.rb'));
 const formulaFiles = fs.existsSync(formulaDir)
   ? fs.readdirSync(formulaDir).filter((name) => name.endsWith('.rb')).sort()
   : [];
@@ -30,8 +32,8 @@ assert.deepEqual(
   ['one-person-lab-full.rb', 'one-person-lab-nightly.rb', 'one-person-lab.rb'],
   'the tap may publish only the three App casks',
 );
-assert.match(read('README.md'), /Formula publication is not yet public/);
-assert.doesNotMatch(read('README.md'), /brew install opl/);
+assert.match(read('README.md'), /sole Formula identity is `opl`/);
+assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
 assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
 assert.match(read('README.md'), /`opl-framework` is not a second public Formula or OPL Package identity/);
 assert.match(read('README.md'), /production dependencies, including Temporal/);
@@ -44,12 +46,14 @@ assert.match(read('README.md'), /Homebrew-owned Base update stays on the Homebre
 assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
 assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
 assert.match(read('README.md'), /`YY\.M\.D-nightly\.<run_id>\.<attempt>`/);
+assert.match(read('README.md'), /opl_stable_distribution_receipt\.v2/);
+assert.match(read('README.md'), /no eligible Nightly exists it completes as a no-op/);
 for (const channelConsumer of [
   'README.md',
   'scripts/sync-formula-from-framework-manifest.mjs',
 ]) {
   const content = read(channelConsumer);
-  assert.match(content, /one-person-lab-manifest:latest-stable/);
+  assert.match(content, /one-person-lab-manifest(?::|`[^\n]*:)latest-stable|latest-stable/);
   assert.doesNotMatch(content, /one-person-lab-manifest:latest(?!-stable)/);
 }
 
@@ -58,7 +62,11 @@ for (const cask of [
   'Casks/one-person-lab-nightly.rb',
   'Casks/one-person-lab-full.rb',
 ]) {
-  assert.doesNotMatch(read(cask), /depends_on formula: "opl"/);
+  assert.equal(
+    /depends_on formula: "opl"/.test(read(cask)),
+    formulaPublished,
+    `${cask} Formula dependency must match Formula/opl.rb publication`,
+  );
 }
 assert.match(
   read('Casks/one-person-lab-full.rb'),
@@ -67,39 +75,102 @@ assert.match(
 assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
 assert.doesNotMatch(read('.github/workflows/tap-check.yml'), /--no-signing/);
 
+const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
+const releaseSetGeneration = '26.7.13-r4';
+const frameworkSha = '1'.repeat(40);
+const frameworkArtifact = 'ghcr.io/gaofeng21cn/one-person-lab-framework:0.2.1';
+const frameworkArtifactDigest = `sha256:${'4'.repeat(64)}`;
+const packageArtifacts = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
+  package_id: packageId,
+  version: '0.2.0',
+}]));
+const packageMembers = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
+  package_id: packageId,
+  component_id: packageId,
+  component_kind: 'package',
+  version: '0.2.0',
+}]));
+const packageCatalog = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
+  package_id: packageId,
+  versions: [{ version: '0.2.0' }],
+}]));
 const manifestFixture = {
-  opl_version: '26.7.10',
+  opl_version: '999.999.999',
+  release_set_generation: releaseSetGeneration,
+  release_set: {
+    surface_kind: 'opl_release_set.v2',
+    generation: releaseSetGeneration,
+    bom_status: 'complete',
+    bom_digest: `sha256:${'5'.repeat(64)}`,
+    component_count: 9,
+    components: {
+      base: {
+        component_id: 'opl-base',
+        component_kind: 'base',
+        version: '0.2.1',
+        source_commit: frameworkSha,
+        artifact_ref: frameworkArtifact,
+        artifact_digest: frameworkArtifactDigest,
+        artifact_status: 'published_immutable',
+      },
+      app: {
+        component_id: 'opl-app',
+        component_kind: 'app',
+        version: '26.7.13',
+      },
+      packages: {
+        package_count: 7,
+        members: packageMembers,
+      },
+    },
+  },
   packages: {
     framework_core: {
-      version: '26.7.10',
+      version: '0.2.1',
+      artifact: frameworkArtifact,
+      artifact_digest: frameworkArtifactDigest,
+      artifact_status: 'published_immutable',
       source_git: {
         repo_url: 'https://github.com/gaofeng21cn/one-person-lab.git',
-        head_sha: '1'.repeat(40),
+        head_sha: frameworkSha,
       },
       source_archive: { sha256: '2'.repeat(64) },
       homebrew_formula: {
+        surface_kind: 'opl_homebrew_formula_projection.v1',
         formula_name: 'opl',
         package_name: 'opl',
-        version: '26.7.10',
-        source_head: '1'.repeat(40),
-        archive_url: `https://github.com/gaofeng21cn/one-person-lab/archive/${'1'.repeat(40)}.tar.gz`,
+        approval_status: 'owner_approved',
+        carrier_scope: 'framework_core_only',
+        version: '0.2.1',
+        source_head: frameworkSha,
+        archive_url: `https://github.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}.tar.gz`,
         archive_kind: 'immutable_github_commit_archive',
         sha256_source: 'tap_sync_download_and_hash',
+        tap_generator_role: 'consume_projection_without_inference',
       },
     },
+    package_artifacts: packageArtifacts,
+    package_catalog: packageCatalog,
   },
 };
 const formulaMetadata = formulaMetadataFromManifest(manifestFixture);
 assert.equal(formulaMetadata.formulaName, 'opl');
 assert.equal(formulaMetadata.packageName, 'opl');
+assert.equal(formulaMetadata.version, '0.2.1');
+assert.equal(formulaMetadata.releaseSetGeneration, releaseSetGeneration);
 assert.equal(
   formulaMetadata.archiveUrl,
-  `https://github.com/gaofeng21cn/one-person-lab/archive/${'1'.repeat(40)}.tar.gz`,
+  `https://github.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}.tar.gz`,
+);
+assert.doesNotThrow(
+  () => formulaMetadataFromManifest({ ...manifestFixture, opl_version: '26.7.10' }),
+  'Formula version must not be compared with the retired manifest.opl_version field',
 );
 assert.throws(
   () => formulaMetadataFromManifest({
     ...manifestFixture,
     packages: {
+      ...manifestFixture.packages,
       framework_core: {
         ...manifestFixture.packages.framework_core,
         homebrew_formula: undefined,
@@ -112,6 +183,7 @@ assert.throws(
   () => formulaMetadataFromManifest({
     ...manifestFixture,
     packages: {
+      ...manifestFixture.packages,
       framework_core: {
         ...manifestFixture.packages.framework_core,
         homebrew_formula: {
@@ -127,6 +199,7 @@ assert.throws(
   () => formulaMetadataFromManifest({
     ...manifestFixture,
     packages: {
+      ...manifestFixture.packages,
       framework_core: {
         ...manifestFixture.packages.framework_core,
         homebrew_formula: {
@@ -138,12 +211,54 @@ assert.throws(
   }),
   /formula_name and package_name must both be opl/,
 );
+assert.throws(
+  () => formulaMetadataFromManifest({
+    ...manifestFixture,
+    packages: {
+      ...manifestFixture.packages,
+      package_catalog: {
+        ...manifestFixture.packages.package_catalog,
+        mas: {
+          ...manifestFixture.packages.package_catalog.mas,
+          homebrew_formula: { formula_name: 'mas' },
+        },
+      },
+    },
+  }),
+  /mas must not declare a Homebrew Formula or Cask/,
+);
+assert.deepEqual(
+  parseGhcrImage(`ghcr.io/gaofeng21cn/one-person-lab-manifest:${releaseSetGeneration}`),
+  {
+    repository: 'gaofeng21cn/one-person-lab-manifest',
+    reference: releaseSetGeneration,
+    referenceKind: 'tag',
+  },
+);
+assert.doesNotThrow(() => validateRemoteManifestBinding({
+  generationReference: releaseSetGeneration,
+  generationDigest: `sha256:${'6'.repeat(64)}`,
+  stableReference: 'latest-stable',
+  stableDigest: `sha256:${'6'.repeat(64)}`,
+  expectedGeneration: releaseSetGeneration,
+  expectedDigest: `sha256:${'6'.repeat(64)}`,
+}));
+assert.throws(() => validateRemoteManifestBinding({
+  generationReference: releaseSetGeneration,
+  generationDigest: `sha256:${'6'.repeat(64)}`,
+  stableReference: 'latest-stable',
+  stableDigest: `sha256:${'7'.repeat(64)}`,
+  expectedGeneration: releaseSetGeneration,
+  expectedDigest: `sha256:${'6'.repeat(64)}`,
+}), /latest-stable does not point to exact Release Set digest/);
 const renderedFormula = renderFormula({
   ...formulaMetadata,
   transportSha256: '3'.repeat(64),
 });
-assert.match(renderedFormula, /version "26\.7\.10"/);
-assert.match(renderedFormula, new RegExp(`framework_source_head: ${'1'.repeat(40)}`));
+assert.match(renderedFormula, /version "0\.2\.1"/);
+assert.match(renderedFormula, new RegExp(`release_set_generation: ${releaseSetGeneration}`));
+assert.match(renderedFormula, new RegExp(`framework_source_head: ${frameworkSha}`));
+assert.match(renderedFormula, new RegExp(`framework_artifact_digest: ${frameworkArtifactDigest}`));
 assert.match(renderedFormula, new RegExp(`framework_package_archive_sha256: ${'2'.repeat(64)}`));
 assert.match(renderedFormula, new RegExp(`sha256 "${'3'.repeat(64)}"`));
 assert.match(renderedFormula, /formula_identity: opl/);
@@ -190,7 +305,11 @@ for (const workflow of [
 }
 assert.match(
   read('.github/workflows/sync-from-app-releases.yml'),
-  /A published opl Formula cannot be preserved silently/,
+  /--allow-missing-nightly/,
+);
+assert.doesNotMatch(
+  read('.github/workflows/sync-from-app-releases.yml'),
+  /sync-formula-from-framework-manifest/,
 );
 
 for (const [cask, channel, packageKind] of [
@@ -234,15 +353,21 @@ function writeMockGh(dir, {
   isDraft = false,
   isPrerelease = false,
   assets = [],
+  releases = [],
 } = {}) {
   const bin = path.join(dir, 'bin');
   fs.mkdirSync(bin, { recursive: true });
   const gh = path.join(bin, 'gh');
   const payload = JSON.stringify({ tagName, isDraft, isPrerelease, assets });
+  const releasesPayload = JSON.stringify(releases);
   fs.writeFileSync(gh, `#!/usr/bin/env bash
 set -euo pipefail
 if [ "$1" = "release" ] && [ "$2" = "view" ]; then
   printf '%s' '${payload}'
+  exit 0
+fi
+if [ "$1" = "release" ] && [ "$2" = "list" ]; then
+  printf '%s' '${releasesPayload}'
   exit 0
 fi
 echo "unexpected gh args: $*" >&2
@@ -363,12 +488,52 @@ assert.match(generatedNightly, /version "26\.7\.12-nightly\.123456789\.2"/);
 assert.match(generatedNightly, /# package_specific_formula_allowed: false/);
 assert.match(generatedNightly, /# package_specific_cask_allowed: false/);
 
+const noNightlyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-nightly-noop-'));
+fs.mkdirSync(path.join(noNightlyTmp, 'Casks'));
+const noNightlyBin = writeMockGh(noNightlyTmp, { releases: [] });
+const noNightly = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'nightly',
+  '--allow-missing-nightly',
+], {
+  cwd: noNightlyTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${noNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.equal(noNightly.status, 0, noNightly.stderr);
+assert.deepEqual(JSON.parse(noNightly.stdout), {
+  status: 'no_op',
+  channel: 'nightly',
+  reason: 'no_eligible_published_prerelease',
+});
+assert.equal(fs.existsSync(path.join(noNightlyTmp, 'Casks/one-person-lab-nightly.rb')), false);
+
+const noNightlyStrict = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'nightly',
+], {
+  cwd: noNightlyTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${noNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.notEqual(noNightlyStrict.status, 0);
+assert.match(noNightlyStrict.stderr, /No published nightly release found/);
+
 const projectionTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-projection-failure-'));
 const legacyManifestPath = path.join(projectionTmp, 'legacy-manifest.json');
 const sentinelFormulaPath = path.join(projectionTmp, 'opl.rb');
 fs.writeFileSync(legacyManifestPath, JSON.stringify({
   ...manifestFixture,
   packages: {
+    ...manifestFixture.packages,
     framework_core: {
       ...manifestFixture.packages.framework_core,
       package_name: 'opl-framework-shared',

@@ -5,6 +5,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  formulaMetadataFromManifest,
+  writeFileAtomically,
+} from './sync-formula-from-framework-manifest.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tapRoot = process.env.OPL_HOMEBREW_TAP_ROOT
@@ -12,6 +16,7 @@ const tapRoot = process.env.OPL_HOMEBREW_TAP_ROOT
   : scriptRoot;
 const appRepo = 'gaofeng21cn/one-person-lab-app';
 const tapRepo = 'gaofeng21cn/homebrew-one-person-lab';
+const releaseSetRepo = 'ghcr.io/gaofeng21cn/one-person-lab-manifest';
 const shaRefPattern = /^sha256:[a-f0-9]{64}$/;
 const sha256Pattern = /^[a-f0-9]{64}$/;
 const gitShaPattern = /^[a-f0-9]{40}$/;
@@ -26,6 +31,9 @@ function parseArgs(argv) {
     appSha: '',
     shellSha: '',
     frameworkSha: '',
+    releaseSetGeneration: '',
+    releaseSetManifest: '',
+    releaseSetManifestDigest: '',
     sourceReleaseRunId: '',
     fullVmRunId: '',
     fullVmEvidenceRef: '',
@@ -40,6 +48,9 @@ function parseArgs(argv) {
     '--app-sha': 'appSha',
     '--shell-sha': 'shellSha',
     '--framework-sha': 'frameworkSha',
+    '--release-set-generation': 'releaseSetGeneration',
+    '--release-set-manifest': 'releaseSetManifest',
+    '--release-set-manifest-digest': 'releaseSetManifestDigest',
     '--source-release-run-id': 'sourceReleaseRunId',
     '--full-vm-run-id': 'fullVmRunId',
     '--full-vm-evidence-ref': 'fullVmEvidenceRef',
@@ -90,6 +101,12 @@ function assertInputs(options) {
     throw new Error('full_vm_evidence_sha256 must be 64 lowercase hex characters.');
   }
   if (options.fullVmResult !== 'passed') throw new Error('full_vm_result must be passed.');
+  if (!/^[0-9]{2}\.[0-9]{1,2}\.[0-9]{1,2}(?:-r[1-9][0-9]*)?$/.test(options.releaseSetGeneration)) {
+    throw new Error('release_set_generation must use YY.M.D[-rN].');
+  }
+  if (!shaRefPattern.test(options.releaseSetManifestDigest)) {
+    throw new Error('release_set_manifest_digest must be sha256:<64 lowercase hex>.');
+  }
 }
 
 function ghJson(args) {
@@ -178,21 +195,136 @@ function caskMetadata(relativePath, version) {
   }
   const url = content.match(/^\s*url\s+"(?<url>[^"]+)"/m)?.groups?.url;
   if (!url) throw new Error(`${relativePath} does not expose a cask URL.`);
+  if (!content.includes('depends_on formula: "opl"')) {
+    throw new Error(`${relativePath} must depend on the Formula published in the same Stable distribution.`);
+  }
   return { path: relativePath, version, sha256: fileSha256(filePath), url };
+}
+
+function currentCaskMetadata(relativePath) {
+  const content = fs.readFileSync(path.join(tapRoot, relativePath), 'utf8');
+  const version = content.match(/^\s*version\s+"(?<version>[^"]+)"/m)?.groups?.version;
+  if (!version) throw new Error(`${relativePath} does not expose a cask version.`);
+  return caskMetadata(relativePath, version);
+}
+
+function activateFormulaDependency(relativePath) {
+  const filePath = path.join(tapRoot, relativePath);
+  const content = fs.readFileSync(filePath, 'utf8');
+  if (content.includes('depends_on formula: "opl"')) return;
+  const anchor = '  depends_on macos: :big_sur';
+  if (content.split(anchor).length !== 2) {
+    throw new Error(`${relativePath} has no unique dependency insertion boundary.`);
+  }
+  writeFileAtomically(filePath, content.replace(
+    anchor,
+    `  depends_on formula: "opl"\n${anchor}`,
+  ));
+}
+
+function formulaFileMetadata(manifest, expectedFrameworkSha) {
+  const metadata = formulaMetadataFromManifest(manifest);
+  if (metadata.headSha !== expectedFrameworkSha) {
+    throw new Error('Stable distribution Framework SHA differs from the Release Set Base source commit.');
+  }
+  const relativePath = 'Formula/opl.rb';
+  const filePath = path.join(tapRoot, relativePath);
+  const content = fs.readFileSync(filePath, 'utf8');
+  const transportSha256 = content.match(/^\s*sha256\s+"(?<sha256>[a-f0-9]{64})"$/m)?.groups?.sha256;
+  if (!transportSha256
+    || !content.includes(`# homebrew_transport_archive_sha256: ${transportSha256}`)) {
+    throw new Error(`${relativePath} does not bind one transport archive SHA-256.`);
+  }
+  for (const expected of [
+    `version "${metadata.version}"`,
+    `url "${metadata.archiveUrl}"`,
+    `# release_set_generation: ${metadata.releaseSetGeneration}`,
+    `# framework_source_head: ${metadata.headSha}`,
+    `# framework_artifact_digest: ${metadata.artifactDigest}`,
+    `# framework_package_archive_sha256: ${metadata.packageSha256}`,
+    '# app_payload_installed: false',
+    '# opl_packages_payload_installed: false',
+  ]) {
+    if (!content.includes(expected)) throw new Error(`${relativePath} does not match the exact Release Set Base projection.`);
+  }
+  return {
+    path: relativePath,
+    formula_name: metadata.formulaName,
+    version: metadata.version,
+    source_head: metadata.headSha,
+    artifact_ref: metadata.artifactRef,
+    artifact_digest: metadata.artifactDigest,
+    transport_sha256: transportSha256,
+    sha256: fileSha256(filePath),
+  };
 }
 
 function renderCasks(release, releaseTag) {
   const env = { ...process.env, OPL_APP_RELEASE_VIEW_JSON: JSON.stringify(release) };
   const script = path.join(scriptRoot, 'scripts', 'sync-cask-from-release.mjs');
-  const formulaArgs = fs.existsSync(path.join(tapRoot, 'Formula', 'opl.rb')) ? ['--with-opl-formula'] : [];
+  if (!fs.existsSync(path.join(tapRoot, 'Formula', 'opl.rb'))) {
+    throw new Error('Stable distribution requires Formula/opl.rb to be generated before App casks.');
+  }
   for (const channel of ['stable', 'full']) {
     execFileSync(process.execPath, [
       script,
       '--channel', channel,
       '--release-tag', releaseTag,
-      ...formulaArgs,
+      '--with-opl-formula',
     ], { cwd: tapRoot, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
   }
+  activateFormulaDependency('Casks/one-person-lab-nightly.rb');
+}
+
+function releaseSetMetadata(options, release, assets) {
+  const manifest = JSON.parse(fs.readFileSync(path.resolve(options.releaseSetManifest), 'utf8'));
+  const releaseSet = manifest?.release_set;
+  if (manifest?.release_set_generation !== options.releaseSetGeneration
+    || releaseSet?.surface_kind !== 'opl_release_set.v2'
+    || releaseSet.generation !== options.releaseSetGeneration
+    || releaseSet.bom_status !== 'complete'
+    || !shaRefPattern.test(releaseSet.bom_digest ?? '')) {
+    throw new Error('Stable distribution requires the exact complete Release Set v2 generation.');
+  }
+  const app = releaseSet.components?.app;
+  const version = stableTagPattern.exec(options.releaseTag).groups.version;
+  const dmg = assets.find((asset) => asset.name === `One-Person-Lab-${version}-mac-arm64.dmg`);
+  if (app?.component_id !== 'opl-app'
+    || app.component_kind !== 'app'
+    || app.version !== version
+    || app.source_commit !== options.appSha
+    || app.artifact_ref !== dmg?.url
+    || app.artifact_digest !== `sha256:${dmg?.sha256}`
+    || app.artifact_status !== 'published_immutable'
+    || app.release_status !== 'published'
+    || app.release_tag !== options.releaseTag) {
+    throw new Error('App release and Release Set v2 App component do not identify the same published artifact.');
+  }
+  const formula = formulaFileMetadata(manifest, options.frameworkSha);
+  return {
+    generation: options.releaseSetGeneration,
+    manifest_ref: `${releaseSetRepo}:${options.releaseSetGeneration}`,
+    manifest_digest: options.releaseSetManifestDigest,
+    stable_channel_ref: `${releaseSetRepo}:latest-stable`,
+    stable_channel_digest: options.releaseSetManifestDigest,
+    bom_digest: releaseSet.bom_digest,
+    component_count: releaseSet.component_count,
+    base: {
+      component_id: 'opl-base',
+      version: formula.version,
+      source_commit: formula.source_head,
+      artifact_ref: formula.artifact_ref,
+      artifact_digest: formula.artifact_digest,
+    },
+    app: {
+      component_id: 'opl-app',
+      version: app.version,
+      source_commit: app.source_commit,
+      artifact_ref: app.artifact_ref,
+      artifact_digest: app.artifact_digest,
+    },
+    formula,
+  };
 }
 
 function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
@@ -204,10 +336,12 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
     releaseAsset(release, `One-Person-Lab-Full-${version}-mac-arm64.dmg`),
     releaseAsset(release, 'opl-release-manifest.json'),
   ];
+  const releaseSet = releaseSetMetadata(options, release, assets);
   renderCasks(release, options.releaseTag);
   return {
-    schema: 'opl_stable_distribution_plan.v1',
+    schema: 'opl_stable_distribution_plan.v2',
     stable_session_id: options.stableSessionId,
+    release_set: releaseSet,
     release: {
       repo: appRepo,
       tag: options.releaseTag,
@@ -223,6 +357,8 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
       app_sha: options.appSha,
       shell_sha: options.shellSha,
       framework_sha: options.frameworkSha,
+      release_set_generation: releaseSet.generation,
+      release_set_manifest_digest: releaseSet.manifest_digest,
     },
     full_vm: {
       run_id: options.fullVmRunId,
@@ -233,8 +369,10 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
     },
     tap: {
       repo: tapRepo,
+      formula: releaseSet.formula,
       standard_cask: caskMetadata('Casks/one-person-lab.rb', version),
       full_cask: caskMetadata('Casks/one-person-lab-full.rb', version),
+      nightly_cask: currentCaskMetadata('Casks/one-person-lab-nightly.rb'),
     },
   };
 }
@@ -246,7 +384,7 @@ export function prepareStableDistribution(options) {
     options.sourceReleaseRunId,
     options.appSha,
     'Source release',
-    { requireSuccess: false },
+    { requireSuccess: true },
   );
   const fullVmRun = actionsRunReadback(
     options.fullVmRunId,
