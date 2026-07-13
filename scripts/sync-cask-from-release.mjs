@@ -52,6 +52,13 @@ function parseArgs(argv) {
 }
 
 function ghJson(args) {
+  if (
+    process.env.OPL_APP_RELEASE_VIEW_JSON?.trim()
+    && args[0] === 'release'
+    && args[1] === 'view'
+  ) {
+    return JSON.parse(process.env.OPL_APP_RELEASE_VIEW_JSON);
+  }
   return JSON.parse(execFileSync('gh', args, { encoding: 'utf8' }));
 }
 
@@ -241,6 +248,9 @@ function main() {
     '--json',
     'tagName,isDraft,isPrerelease,assets',
   ]);
+  if (release.tagName !== tag) {
+    throw new Error(`Release tag mismatch: expected ${tag}, got ${release.tagName || '(missing)'}.`);
+  }
   if (release.isDraft) throw new Error('Draft releases must not update Homebrew casks.');
   if ((options.channel === 'stable' || options.channel === 'full') && release.isPrerelease) {
     throw new Error('Stable cask updates must read a non-prerelease release.');

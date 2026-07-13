@@ -12,7 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Test tap distribution boundaries
-        run: node test/downstream-boundary.test.mjs
+        run: |
+          node test/downstream-boundary.test.mjs
+          node test/stable-distribution.test.mjs
       - name: Guard tap surface
         run: |
           set -euo pipefail

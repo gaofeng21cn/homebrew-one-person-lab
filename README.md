@@ -69,6 +69,15 @@ New stable releases use `YY.M.D`. New Nightly releases use the immutable
 rewritten; the next successful sync advances the Cask to a matching published
 App release with release-owned assets and digests.
 
+Formal Stable distribution has one write owner: `.github/workflows/stable-distribution.yml`.
+It requires the App promotion session, exact App/Shell/Framework cohort, source
+release run, and passed Full clean-VM evidence. The workflow derives Standard
+and Full from one public non-latest App release, validates both casks, commits
+them together, and atomically pushes `main` with the immutable annotated tag
+`stable-distribution/v<version>`. That tag and the Actions artifact carry
+`opl_stable_distribution_receipt.v1`. The scheduled sync workflow writes Nightly
+only; its Stable/Full modes are read-only diagnostics and cannot publish casks.
+
 Complete first-install package:
 
 ```bash

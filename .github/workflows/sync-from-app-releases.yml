@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       channel:
-        description: Cask channel to sync
+        description: Nightly write owner or read-only Stable diagnostic
         required: true
         default: nightly
         type: choice
         options:
-          - stable
           - nightly
-          - full
-          - all
+          - diagnostic-stable
+          - diagnostic-full
+          - diagnostic-stable-full
       release_tag:
         description: Optional immutable App release tag, for example v26.7.12-nightly.123456789.1
         required: false
@@ -24,7 +24,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: sync-from-app-releases-${{ github.event.inputs.channel || 'nightly' }}
+  group: opl-homebrew-tap-write
   cancel-in-progress: false
 
 jobs:
@@ -40,17 +40,20 @@ jobs:
           set -euo pipefail
           channel="${{ github.event.inputs.channel || 'nightly' }}"
           release_tag="${{ github.event.inputs.release_tag }}"
-          if [ "$channel" = "all" ] && [ -n "$release_tag" ]; then
-            echo "::error::release_tag can only be used with stable, nightly, or full, not all."
+          case "$channel" in
+            nightly) echo "channels=nightly" >> "$GITHUB_OUTPUT" ;;
+            diagnostic-stable) echo "channels=stable" >> "$GITHUB_OUTPUT" ;;
+            diagnostic-full) echo "channels=full" >> "$GITHUB_OUTPUT" ;;
+            diagnostic-stable-full) echo "channels=stable full" >> "$GITHUB_OUTPUT" ;;
+            *) echo "::error::Unsupported channel: $channel"; exit 1 ;;
+          esac
+          if [ "$channel" != "nightly" ] && [ -z "$release_tag" ]; then
+            echo "::error::Stable diagnostics require an explicit immutable release_tag."
             exit 1
-          fi
-          if [ "$channel" = "all" ]; then
-            echo "channels=stable nightly full" >> "$GITHUB_OUTPUT"
-          else
-            echo "channels=$channel" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Sync opl Formula from Framework package manifest when authorized
+        if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -77,6 +80,16 @@ jobs:
             exit "$status"
           }
           trap report_app_release_failure ERR
+          write_root="$GITHUB_WORKSPACE"
+          if [ "${{ github.event.inputs.channel || 'nightly' }}" != "nightly" ]; then
+            write_root="$(mktemp -d)"
+            mkdir -p "$write_root/Casks"
+            cp Casks/*.rb "$write_root/Casks/"
+            if [ -f Formula/opl.rb ]; then
+              mkdir -p "$write_root/Formula"
+              cp Formula/opl.rb "$write_root/Formula/opl.rb"
+            fi
+          fi
           for channel in $CHANNELS; do
             args=(--channel "$channel")
             if [ -n "$RELEASE_TAG" ]; then
@@ -85,10 +98,15 @@ jobs:
             if [ -f Formula/opl.rb ]; then
               args+=(--with-opl-formula)
             fi
-            node scripts/sync-cask-from-release.mjs "${args[@]}"
+            (cd "$write_root" && node "$GITHUB_WORKSPACE/scripts/sync-cask-from-release.mjs" "${args[@]}")
           done
+          if [ "$write_root" != "$GITHUB_WORKSPACE" ]; then
+            git diff --no-index -- Casks "$write_root/Casks" || test $? -eq 1
+            echo "Stable diagnostic completed without modifying the tap checkout. Formal Stable writes require stable-distribution.yml plus session/cohort/VM evidence."
+          fi
 
       - name: Validate tap
+        if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}
         shell: bash
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
@@ -148,6 +166,7 @@ jobs:
           brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab-full"
 
       - name: Commit tap update
+        if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}
         shell: bash
         run: |
           set -euo pipefail
