@@ -151,9 +151,9 @@ jobs:
           fi
           trap report_app_release_failure ERR
           brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
-          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab"
-          brew audit --cask --no-signing "$GITHUB_REPOSITORY/one-person-lab-nightly"
-          brew audit --cask --online --no-signing "$GITHUB_REPOSITORY/one-person-lab-full"
+          brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab"
+          brew audit --cask "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab-full"
 
       - name: Commit tap update
         if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}

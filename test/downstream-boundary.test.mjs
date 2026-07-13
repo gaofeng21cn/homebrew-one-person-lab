@@ -73,7 +73,12 @@ assert.match(
   /skip "Full casks track explicitly published Full cohorts through App release automation"/,
 );
 assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
-assert.doesNotMatch(read('.github/workflows/tap-check.yml'), /--no-signing/);
+for (const workflow of [
+  '.github/workflows/tap-check.yml',
+  '.github/workflows/sync-from-app-releases.yml',
+]) {
+  assert.doesNotMatch(read(workflow), /--no-signing/);
+}
 
 const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
 const releaseSetGeneration = '26.7.13-r4';
