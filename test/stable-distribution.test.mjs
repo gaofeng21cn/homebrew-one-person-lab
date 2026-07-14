@@ -27,6 +27,7 @@ for (const required of [
   'source_release_run_id',
   'full_vm_run_id',
   'full_vm_evidence_ref',
+  'full_vm_evidence_base64',
   'full_vm_evidence_sha256',
   'full_vm_result',
 ]) {
@@ -35,6 +36,12 @@ for (const required of [
 assert.match(stableWorkflow, /--expected-release-set-generation "\$\{\{ inputs\.release_set_generation \}\}"/);
 assert.match(stableWorkflow, /--expected-manifest-digest "\$\{\{ inputs\.release_set_manifest_digest \}\}"/);
 assert.match(stableWorkflow, /--resolved-manifest-output "\$RUNNER_TEMP\/opl-release-set-manifest\.json"/);
+assert.doesNotMatch(stableWorkflow, /actions\/download-artifact/);
+assert.doesNotMatch(stableWorkflow, /^\s+actions: read$/m);
+assert.match(stableWorkflow, /FULL_VM_EVIDENCE_BASE64: \$\{\{ inputs\.full_vm_evidence_base64 \}\}/);
+assert.match(stableWorkflow, /bytes\.toString\('base64'\) !== encoded/);
+assert.match(stableWorkflow, /--full-vm-evidence "\$\{\{ steps\.full_vm_evidence\.outputs\.receipt \}\}"/);
+assert.doesNotMatch(stableWorkflow, /\bmapfile\b/);
 assert.match(
   stableWorkflow,
   /git add Formula\/opl\.rb Casks\/one-person-lab\.rb Casks\/one-person-lab-nightly\.rb Casks\/one-person-lab-full\.rb/,
@@ -68,6 +75,11 @@ const frameworkSha = '5'.repeat(40);
 const frameworkVersion = '0.2.1';
 const frameworkArtifact = `ghcr.io/gaofeng21cn/one-person-lab-framework:${frameworkVersion}`;
 const frameworkArtifactDigest = `sha256:${'f'.repeat(64)}`;
+const stableSessionId = `sha256:${'1'.repeat(64)}`;
+const releaseCohortRef = `sha256:${'2'.repeat(64)}`;
+const sourceRunId = '29220000001';
+const fullVmRunId = '29220000002';
+const fullVmEvidenceRef = `opl-first-run-vm-full-${fullVmRunId}`;
 const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
 const assets = [
   [`One-Person-Lab-${version}-mac-arm64.dmg`, 'a'],
@@ -159,8 +171,10 @@ function mockGh(rootDir, {
   releaseAssets = assets,
   sourceRunStatus = 'completed',
   sourceRunConclusion = 'success',
+  sourceRunJobs = [],
   fullVmRunStatus = 'completed',
   fullVmRunConclusion = 'success',
+  fullVmHeadSha = appSha,
 } = {}) {
   const bin = path.join(rootDir, 'bin');
   fs.mkdirSync(bin, { recursive: true });
@@ -178,6 +192,22 @@ function mockGh(rootDir, {
     isPrerelease: false,
     publishedAt: '2026-07-13T00:00:00Z',
   }]);
+  const sourceRun = JSON.stringify({
+    databaseId: Number(sourceRunId),
+    headSha: appSha,
+    status: sourceRunStatus,
+    conclusion: sourceRunConclusion,
+    url: `https://github.example/runs/${sourceRunId}`,
+    jobs: sourceRunJobs,
+  });
+  const fullVmRun = JSON.stringify({
+    databaseId: Number(fullVmRunId),
+    headSha: fullVmHeadSha,
+    status: fullVmRunStatus,
+    conclusion: fullVmRunConclusion,
+    url: `https://github.example/runs/${fullVmRunId}`,
+    jobs: [],
+  });
   fs.writeFileSync(path.join(bin, 'gh'), `#!/usr/bin/env bash
 set -euo pipefail
 if [ "$1 $2" = "release view" ]; then
@@ -190,14 +220,11 @@ if [ "$1 $2" = "release list" ]; then
 fi
 if [ "$1 $2" = "run view" ]; then
   run_id="$3"
-  if [ "$run_id" = "29220000001" ]; then
-    status="${sourceRunStatus}"
-    conclusion="${sourceRunConclusion}"
+  if [ "$run_id" = "${sourceRunId}" ]; then
+    printf '%s' '${sourceRun}'
   else
-    status="${fullVmRunStatus}"
-    conclusion="${fullVmRunConclusion}"
+    printf '%s' '${fullVmRun}'
   fi
-  printf '{"databaseId":%s,"headSha":"%s","status":"%s","conclusion":"%s","url":"https://github.example/runs/%s"}' "$run_id" "${appSha}" "$status" "$conclusion" "$run_id"
   exit 0
 fi
 echo "unexpected gh args: $*" >&2
@@ -206,22 +233,59 @@ exit 99
   return bin;
 }
 
+function writeFullVmEvidence(tempRoot, overrides = {}) {
+  const receipt = {
+    schema: 'opl_app_artifact_qualification_receipt.v1',
+    status: 'passed',
+    stable_session_id: stableSessionId,
+    release_cohort_ref: releaseCohortRef,
+    version,
+    package_profile: 'full',
+    qualification: {
+      run_id: fullVmRunId,
+      source_artifact_run_id: sourceRunId,
+      source_artifact_name: `opl-full-first-install-dmg-${version}-mac-arm64`,
+      evidence_ref: fullVmEvidenceRef,
+      result: 'passed',
+    },
+    artifact: {
+      name: `One-Person-Lab-Full-${version}-mac-arm64.dmg`,
+      sha256: 'd'.repeat(64),
+      size_bytes: 123,
+    },
+    cohort: { app_sha: appSha, shell_sha: shellSha, framework_sha: frameworkSha },
+    verification_harness: {
+      app_sha: appSha,
+      shell_sha: shellSha,
+      differs_from_artifact_cohort: false,
+      change_scope: 'same_cohort',
+    },
+    smoke_summary: { path: 'tart-smoke-summary.json', sha256: 'a'.repeat(64) },
+    ...overrides,
+  };
+  const receiptPath = path.join(tempRoot, 'artifact-qualification-receipt.json');
+  fs.writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`);
+  return receiptPath;
+}
+
 function prepareArgs(tempRoot, output = path.join(tempRoot, 'plan.json')) {
+  const fullVmEvidence = path.join(tempRoot, 'artifact-qualification-receipt.json');
   return [
     path.join(root, 'scripts/prepare-stable-distribution.mjs'),
     '--release-tag', tag,
-    '--stable-session-id', `sha256:${'1'.repeat(64)}`,
-    '--release-cohort-ref', `sha256:${'2'.repeat(64)}`,
+    '--stable-session-id', stableSessionId,
+    '--release-cohort-ref', releaseCohortRef,
     '--app-sha', appSha,
     '--shell-sha', shellSha,
     '--framework-sha', frameworkSha,
     '--release-set-generation', releaseSetGeneration,
     '--release-set-manifest', path.join(tempRoot, 'opl-release-set-manifest.json'),
     '--release-set-manifest-digest', releaseSetManifestDigest,
-    '--source-release-run-id', '29220000001',
-    '--full-vm-run-id', '29220000002',
-    '--full-vm-evidence-ref', 'opl-first-run-vm-full-29220000002/receipt.json',
-    '--full-vm-evidence-sha256', '6'.repeat(64),
+    '--source-release-run-id', sourceRunId,
+    '--full-vm-run-id', fullVmRunId,
+    '--full-vm-evidence', fullVmEvidence,
+    '--full-vm-evidence-ref', fullVmEvidenceRef,
+    '--full-vm-evidence-sha256', crypto.createHash('sha256').update(fs.readFileSync(fullVmEvidence)).digest('hex'),
     '--full-vm-result', 'passed',
     '--output', output,
   ];
@@ -244,6 +308,7 @@ function createTapFixture(prefix, manifest = releaseSetManifest()) {
     path.join(tempRoot, 'opl-release-set-manifest.json'),
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
+  writeFullVmEvidence(tempRoot);
   return tempRoot;
 }
 
@@ -267,8 +332,10 @@ assert.equal(plan.schema, 'opl_stable_distribution_plan.v2');
 assert.equal(plan.release.latest, false);
 assert.equal(plan.release.assets.length, 5);
 assert.equal(plan.release.source_release_run.conclusion, 'success');
+assert.equal(plan.release.source_release_run.qualification.mode, 'source_run_success');
 assert.equal(plan.full_vm.result, 'passed');
 assert.equal(plan.full_vm.run_readback.conclusion, 'success');
+assert.equal(plan.full_vm.evidence_receipt.status, 'passed');
 assert.equal(plan.release_set.generation, releaseSetGeneration);
 assert.equal(plan.release_set.manifest_digest, releaseSetManifestDigest);
 assert.equal(plan.release_set.stable_channel_digest, releaseSetManifestDigest);
@@ -310,7 +377,7 @@ assert.equal(receipt.release.source_release_run.conclusion, 'success');
 assert.equal(receipt.cohort.app_sha, appSha);
 assert.equal(receipt.cohort.framework_sha, frameworkSha);
 assert.equal(receipt.release_set.manifest_digest, releaseSetManifestDigest);
-assert.equal(receipt.full_vm.run_id, '29220000002');
+assert.equal(receipt.full_vm.run_id, fullVmRunId);
 assert.equal(receipt.tap.repo, 'gaofeng21cn/homebrew-one-person-lab');
 assert.equal(receipt.tap.commit_sha, '7'.repeat(40));
 assert.equal(receipt.tap.annotated_tag, `stable-distribution/v${version}`);
@@ -350,7 +417,130 @@ const failedSource = runPrepare(failedSourceRoot, mockGh(failedSourceRoot, {
   sourceRunConclusion: 'failure',
 }));
 assert.notEqual(failedSource.status, 0);
-assert.match(failedSource.stderr, /Source release must complete successfully before Stable distribution/);
+assert.match(failedSource.stderr, /Source release has unexpected failed jobs/);
+
+const supersededSourceRoot = createTapFixture('opl-stable-distribution-superseded-source-');
+const supersededSource = runPrepare(supersededSourceRoot, mockGh(supersededSourceRoot, {
+  sourceRunConclusion: 'failure',
+  sourceRunJobs: [{
+    name: 'Run clean Full first-run VM smoke / Clean VM first launch',
+    status: 'completed',
+    conclusion: 'failure',
+  }],
+}));
+assert.equal(supersededSource.status, 0, supersededSource.stderr);
+const supersededPlan = JSON.parse(fs.readFileSync(path.join(supersededSourceRoot, 'plan.json'), 'utf8'));
+assert.equal(supersededPlan.release.source_release_run.qualification.mode, 'exact_full_vm_receipt_supersession');
+const supersededFinalize = spawnSync(process.execPath, [
+  path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs'),
+  '--plan', path.join(supersededSourceRoot, 'plan.json'),
+  '--tap-commit', '7'.repeat(40),
+  '--annotated-tag', `stable-distribution/v${version}`,
+  '--output', path.join(supersededSourceRoot, 'receipt.json'),
+], {
+  cwd: supersededSourceRoot,
+  encoding: 'utf8',
+  env: { ...process.env, OPL_HOMEBREW_TAP_ROOT: supersededSourceRoot },
+});
+assert.equal(supersededFinalize.status, 0, supersededFinalize.stderr);
+
+const forgedSourcePlan = structuredClone(supersededPlan);
+forgedSourcePlan.release.source_release_run.qualification.mode = 'source_run_success';
+fs.writeFileSync(
+  path.join(supersededSourceRoot, 'forged-source-plan.json'),
+  `${JSON.stringify(forgedSourcePlan, null, 2)}\n`,
+);
+const forgedSourceFinalize = spawnSync(process.execPath, [
+  path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs'),
+  '--plan', path.join(supersededSourceRoot, 'forged-source-plan.json'),
+  '--tap-commit', '7'.repeat(40),
+  '--annotated-tag', `stable-distribution/v${version}`,
+  '--output', path.join(supersededSourceRoot, 'forged-receipt.json'),
+], {
+  cwd: supersededSourceRoot,
+  encoding: 'utf8',
+  env: { ...process.env, OPL_HOMEBREW_TAP_ROOT: supersededSourceRoot },
+});
+assert.notEqual(forgedSourceFinalize.status, 0);
+assert.match(forgedSourceFinalize.stderr, /passed App and Full qualification evidence/);
+
+const forgedHarnessPlan = structuredClone(supersededPlan);
+forgedHarnessPlan.full_vm.run_readback.head_sha = '8'.repeat(40);
+fs.writeFileSync(
+  path.join(supersededSourceRoot, 'forged-harness-plan.json'),
+  `${JSON.stringify(forgedHarnessPlan, null, 2)}\n`,
+);
+const forgedHarnessFinalize = spawnSync(process.execPath, [
+  path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs'),
+  '--plan', path.join(supersededSourceRoot, 'forged-harness-plan.json'),
+  '--tap-commit', '7'.repeat(40),
+  '--annotated-tag', `stable-distribution/v${version}`,
+  '--output', path.join(supersededSourceRoot, 'forged-harness-receipt.json'),
+], {
+  cwd: supersededSourceRoot,
+  encoding: 'utf8',
+  env: { ...process.env, OPL_HOMEBREW_TAP_ROOT: supersededSourceRoot },
+});
+assert.notEqual(forgedHarnessFinalize.status, 0);
+assert.match(forgedHarnessFinalize.stderr, /passed App and Full qualification evidence/);
+
+const unexpectedSourceRoot = createTapFixture('opl-stable-distribution-unexpected-source-');
+const unexpectedSource = runPrepare(unexpectedSourceRoot, mockGh(unexpectedSourceRoot, {
+  sourceRunConclusion: 'failure',
+  sourceRunJobs: [{ name: 'Release source gate', status: 'completed', conclusion: 'failure' }],
+}));
+assert.notEqual(unexpectedSource.status, 0);
+assert.match(unexpectedSource.stderr, /Release source gate/);
+
+const cancelledSourceRoot = createTapFixture('opl-stable-distribution-cancelled-source-');
+const cancelledSource = runPrepare(cancelledSourceRoot, mockGh(cancelledSourceRoot, {
+  sourceRunConclusion: 'failure',
+  sourceRunJobs: [
+    {
+      name: 'Run clean Full first-run VM smoke / Clean VM first launch',
+      status: 'completed',
+      conclusion: 'failure',
+    },
+    { name: 'Publish Full first-install assets', status: 'completed', conclusion: 'cancelled' },
+  ],
+}));
+assert.notEqual(cancelledSource.status, 0);
+assert.match(cancelledSource.stderr, /Publish Full first-install assets \(cancelled\)/);
+
+const harnessSha = '9'.repeat(40);
+const harnessRoot = createTapFixture('opl-stable-distribution-harness-scope-');
+const harnessReceiptPath = path.join(harnessRoot, 'artifact-qualification-receipt.json');
+const harnessReceipt = JSON.parse(fs.readFileSync(harnessReceiptPath, 'utf8'));
+harnessReceipt.verification_harness = {
+  ...harnessReceipt.verification_harness,
+  app_sha: harnessSha,
+  differs_from_artifact_cohort: true,
+  change_scope: 'smoke_or_validator_only',
+};
+fs.writeFileSync(harnessReceiptPath, `${JSON.stringify(harnessReceipt, null, 2)}\n`);
+const harnessRun = runPrepare(harnessRoot, mockGh(harnessRoot, { fullVmHeadSha: harnessSha }));
+assert.equal(harnessRun.status, 0, harnessRun.stderr);
+
+const wrongHarnessRoot = createTapFixture('opl-stable-distribution-wrong-harness-');
+const wrongHarnessReceiptPath = path.join(wrongHarnessRoot, 'artifact-qualification-receipt.json');
+const wrongHarnessReceipt = JSON.parse(fs.readFileSync(wrongHarnessReceiptPath, 'utf8'));
+wrongHarnessReceipt.verification_harness = {
+  ...wrongHarnessReceipt.verification_harness,
+  app_sha: harnessSha,
+  differs_from_artifact_cohort: true,
+  change_scope: 'smoke_or_validator_only',
+};
+fs.writeFileSync(wrongHarnessReceiptPath, `${JSON.stringify(wrongHarnessReceipt, null, 2)}\n`);
+const wrongHarnessRun = runPrepare(wrongHarnessRoot, mockGh(wrongHarnessRoot));
+assert.notEqual(wrongHarnessRun.status, 0);
+assert.match(wrongHarnessRun.stderr, /expected head SHA/);
+
+const digestMismatchRoot = createTapFixture('opl-stable-distribution-digest-mismatch-');
+const digestMismatchArgs = prepareArgs(digestMismatchRoot);
+digestMismatchArgs[digestMismatchArgs.indexOf('--full-vm-evidence-sha256') + 1] = '0'.repeat(64);
+const digestMismatch = runPrepare(digestMismatchRoot, mockGh(digestMismatchRoot), digestMismatchArgs);
+assert.notEqual(digestMismatch.status, 0);
+assert.match(digestMismatch.stderr, /receipt digest does not match/);
 
 const runningSourceRoot = createTapFixture('opl-stable-distribution-running-source-');
 const runningSource = runPrepare(runningSourceRoot, mockGh(runningSourceRoot, {

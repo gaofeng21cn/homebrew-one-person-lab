@@ -66,10 +66,47 @@ export function finalizeStableDistributionReceipt(plan, options) {
   if (options.annotatedTag !== expectedTag) {
     throw new Error(`annotated_tag must be ${expectedTag}.`);
   }
+  const sourceRun = plan.release?.source_release_run;
+  const allowedFullVmFailure = 'Run clean Full first-run VM smoke / Clean VM first launch';
+  const sourceBlockingJobs = sourceRun?.jobs?.filter((job) => !['success', 'skipped'].includes(job.conclusion)) ?? [];
+  const sourceQualified = (sourceRun?.conclusion === 'success'
+      && sourceRun?.qualification?.mode === 'source_run_success'
+      && sourceRun?.qualification?.superseded_failed_jobs?.length === 0
+      && sourceBlockingJobs.length === 0)
+    || (sourceRun?.conclusion === 'failure'
+      && sourceRun?.qualification?.mode === 'exact_full_vm_receipt_supersession'
+      && sourceRun?.qualification?.superseded_failed_jobs?.length === 1
+      && sourceRun.qualification.superseded_failed_jobs[0] === allowedFullVmFailure
+      && sourceBlockingJobs.length === 1
+      && sourceBlockingJobs[0]?.name === allowedFullVmFailure
+      && sourceBlockingJobs[0]?.conclusion === 'failure'
+      && sourceRun.qualification.qualification_run_id === plan.full_vm?.run_id
+      && sourceRun.qualification.evidence_sha256 === plan.full_vm?.evidence_sha256);
+  const evidence = plan.full_vm?.evidence_receipt;
+  const fullAssetName = `One-Person-Lab-Full-${plan.release?.version}-mac-arm64.dmg`;
+  const fullAsset = plan.release?.assets?.find((asset) => asset?.name === fullAssetName);
+  const harnessDiffers = evidence?.verification_harness?.app_sha !== plan.cohort?.app_sha
+    || evidence?.verification_harness?.shell_sha !== plan.cohort?.shell_sha;
+  const expectedHarnessScope = harnessDiffers ? 'smoke_or_validator_only' : 'same_cohort';
+  const fullVmQualified = plan.full_vm?.result === 'passed'
+    && plan.full_vm?.run_readback?.conclusion === 'success'
+    && plan.full_vm?.run_readback?.head_sha === evidence?.verification_harness?.app_sha
+    && evidence?.status === 'passed'
+    && evidence?.stable_session_id === plan.stable_session_id
+    && evidence?.release_cohort_ref === plan.cohort?.release_cohort_ref
+    && evidence?.qualification?.run_id === plan.full_vm?.run_id
+    && evidence?.qualification?.source_artifact_run_id === plan.release?.source_release_run_id
+    && evidence?.qualification?.evidence_ref === plan.full_vm?.evidence_ref
+    && evidence?.cohort?.app_sha === plan.cohort?.app_sha
+    && evidence?.cohort?.shell_sha === plan.cohort?.shell_sha
+    && evidence?.cohort?.framework_sha === plan.cohort?.framework_sha
+    && evidence?.verification_harness?.differs_from_artifact_cohort === harnessDiffers
+    && evidence?.verification_harness?.change_scope === expectedHarnessScope
+    && evidence?.artifact?.name === fullAssetName
+    && evidence?.artifact?.sha256 === fullAsset?.sha256;
   if (plan.release?.public !== true || plan.release?.latest !== false
-    || plan.release?.source_release_run?.conclusion !== 'success'
-    || plan.full_vm?.result !== 'passed'
-    || plan.full_vm?.run_readback?.conclusion !== 'success') {
+    || !sourceQualified
+    || !fullVmQualified) {
     throw new Error('Stable distribution plan no longer carries passed App and Full qualification evidence.');
   }
   if (plan.release_set?.generation !== plan.cohort?.release_set_generation

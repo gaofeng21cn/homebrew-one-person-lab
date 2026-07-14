@@ -79,6 +79,11 @@ and atomically pushes `main` with the immutable annotated tag
 only; when no eligible Nightly exists it completes as a no-op. Its Stable/Full
 modes are read-only diagnostics and cannot publish casks or Formulae.
 
+The App promotion owner passes the already validated Full qualification receipt
+as canonical base64 workflow input. The tap reconstructs the exact bytes and
+checks their owner-provided SHA-256 before reading the receipt; it does not rely
+on a tap-scoped `GITHUB_TOKEN` to read App repository Actions artifacts.
+
 Complete first-install package:
 
 ```bash

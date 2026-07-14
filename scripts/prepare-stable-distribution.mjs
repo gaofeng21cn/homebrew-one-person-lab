@@ -36,6 +36,7 @@ function parseArgs(argv) {
     releaseSetManifestDigest: '',
     sourceReleaseRunId: '',
     fullVmRunId: '',
+    fullVmEvidence: '',
     fullVmEvidenceRef: '',
     fullVmEvidenceSha256: '',
     fullVmResult: '',
@@ -53,6 +54,7 @@ function parseArgs(argv) {
     '--release-set-manifest-digest': 'releaseSetManifestDigest',
     '--source-release-run-id': 'sourceReleaseRunId',
     '--full-vm-run-id': 'fullVmRunId',
+    '--full-vm-evidence': 'fullVmEvidence',
     '--full-vm-evidence-ref': 'fullVmEvidenceRef',
     '--full-vm-evidence-sha256': 'fullVmEvidenceSha256',
     '--full-vm-result': 'fullVmResult',
@@ -138,17 +140,17 @@ function releaseReadback(tag) {
   return release;
 }
 
-function actionsRunReadback(runId, expectedAppSha, label, { requireSuccess }) {
+function actionsRunReadback(runId, expectedHeadSha, label, { requireSuccess }) {
   const run = ghJson([
     'run', 'view', runId,
     '--repo', appRepo,
-    '--json', 'databaseId,headSha,status,conclusion,url',
+    '--json', 'databaseId,headSha,status,conclusion,url,jobs',
   ]);
   if (String(run.databaseId) !== runId) {
     throw new Error(`${label} run id mismatch: expected ${runId}, got ${run.databaseId || '(missing)'}.`);
   }
-  if (run.headSha !== expectedAppSha) {
-    throw new Error(`${label} must use frozen App SHA ${expectedAppSha}, got ${run.headSha || '(missing)'}.`);
+  if (expectedHeadSha && run.headSha !== expectedHeadSha) {
+    throw new Error(`${label} must use expected head SHA ${expectedHeadSha}, got ${run.headSha || '(missing)'}.`);
   }
   if (run.status !== 'completed') {
     throw new Error(`${label} must be completed before Stable distribution.`);
@@ -162,6 +164,11 @@ function actionsRunReadback(runId, expectedAppSha, label, { requireSuccess }) {
     status: run.status,
     conclusion: run.conclusion,
     url: run.url,
+    jobs: (run.jobs ?? []).map((job) => ({
+      name: job.name,
+      status: job.status,
+      conclusion: job.conclusion,
+    })),
   };
 }
 
@@ -185,6 +192,90 @@ function releaseAsset(release, name) {
 
 function fileSha256(filePath) {
   return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function fullVmEvidenceReadback(options) {
+  const receiptPath = path.resolve(options.fullVmEvidence);
+  if (!fs.existsSync(receiptPath)) {
+    throw new Error('Full clean-VM qualification receipt file is missing.');
+  }
+  const digest = fileSha256(receiptPath);
+  if (digest !== options.fullVmEvidenceSha256) {
+    throw new Error('Full clean-VM qualification receipt digest does not match the owner-provided digest.');
+  }
+  let receipt;
+  try {
+    receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
+  } catch {
+    throw new Error('Full clean-VM qualification receipt must be valid JSON.');
+  }
+  const version = stableTagPattern.exec(options.releaseTag).groups.version;
+  const expected = [
+    ['schema', receipt.schema, 'opl_app_artifact_qualification_receipt.v1'],
+    ['status', receipt.status, 'passed'],
+    ['stable_session_id', receipt.stable_session_id, options.stableSessionId],
+    ['release_cohort_ref', receipt.release_cohort_ref, options.releaseCohortRef],
+    ['version', receipt.version, version],
+    ['package_profile', receipt.package_profile, 'full'],
+    ['qualification.run_id', String(receipt.qualification?.run_id ?? ''), options.fullVmRunId],
+    ['qualification.source_artifact_run_id', String(receipt.qualification?.source_artifact_run_id ?? ''), options.sourceReleaseRunId],
+    ['qualification.source_artifact_name', receipt.qualification?.source_artifact_name, `opl-full-first-install-dmg-${version}-mac-arm64`],
+    ['qualification.evidence_ref', receipt.qualification?.evidence_ref, options.fullVmEvidenceRef],
+    ['qualification.result', receipt.qualification?.result, 'passed'],
+    ['artifact.name', receipt.artifact?.name, `One-Person-Lab-Full-${version}-mac-arm64.dmg`],
+    ['cohort.app_sha', receipt.cohort?.app_sha, options.appSha],
+    ['cohort.shell_sha', receipt.cohort?.shell_sha, options.shellSha],
+    ['cohort.framework_sha', receipt.cohort?.framework_sha, options.frameworkSha],
+  ];
+  for (const [label, actual, wanted] of expected) {
+    if (actual !== wanted) {
+      throw new Error(`Full clean-VM qualification receipt ${label} mismatch.`);
+    }
+  }
+  if (!sha256Pattern.test(receipt.artifact?.sha256 ?? '')) {
+    throw new Error('Full clean-VM qualification receipt artifact SHA-256 is invalid.');
+  }
+  if (!gitShaPattern.test(receipt.verification_harness?.app_sha ?? '')) {
+    throw new Error('Full clean-VM qualification receipt verification harness SHA is invalid.');
+  }
+  if (!gitShaPattern.test(receipt.verification_harness?.shell_sha ?? '')) {
+    throw new Error('Full clean-VM qualification receipt verification harness shell SHA is invalid.');
+  }
+  const harnessDiffers = receipt.verification_harness.app_sha !== options.appSha
+    || receipt.verification_harness.shell_sha !== options.shellSha;
+  if (receipt.verification_harness.differs_from_artifact_cohort !== harnessDiffers
+    || (harnessDiffers && receipt.verification_harness.change_scope !== 'smoke_or_validator_only')) {
+    throw new Error('Full clean-VM qualification receipt does not declare the exact harness change scope.');
+  }
+  return { digest, receipt };
+}
+
+function qualifySourceReleaseRun(run, fullVmEvidence) {
+  if (run.conclusion === 'success') {
+    return {
+      ...run,
+      qualification: { mode: 'source_run_success', superseded_failed_jobs: [] },
+    };
+  }
+  const blockingJobs = run.jobs.filter((job) => !['success', 'skipped'].includes(job.conclusion));
+  const allowedFailure = 'Run clean Full first-run VM smoke / Clean VM first launch';
+  if (run.conclusion !== 'failure'
+    || blockingJobs.length !== 1
+    || blockingJobs[0].name !== allowedFailure
+    || blockingJobs[0].conclusion !== 'failure'
+    || fullVmEvidence.receipt.qualification.source_artifact_run_id !== run.run_id) {
+    const names = blockingJobs.map((job) => `${job.name} (${job.conclusion})`).join(', ') || '(none reported)';
+    throw new Error(`Source release has unexpected failed jobs and cannot be superseded: ${names}.`);
+  }
+  return {
+    ...run,
+    qualification: {
+      mode: 'exact_full_vm_receipt_supersession',
+      superseded_failed_jobs: [allowedFailure],
+      qualification_run_id: fullVmEvidence.receipt.qualification.run_id,
+      evidence_sha256: fullVmEvidence.digest,
+    },
+  };
 }
 
 function caskMetadata(relativePath, version) {
@@ -327,7 +418,7 @@ function releaseSetMetadata(options, release, assets) {
   };
 }
 
-function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
+function buildPlan(options, release, sourceReleaseRun, fullVmRun, fullVmEvidence) {
   const version = stableTagPattern.exec(options.releaseTag).groups.version;
   const assets = [
     releaseAsset(release, `One-Person-Lab-${version}-mac-arm64.dmg`),
@@ -336,6 +427,10 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
     releaseAsset(release, `One-Person-Lab-Full-${version}-mac-arm64.dmg`),
     releaseAsset(release, 'opl-release-manifest.json'),
   ];
+  const fullDmg = assets.find((asset) => asset.name === fullVmEvidence.receipt.artifact.name);
+  if (!fullDmg || fullDmg.sha256 !== fullVmEvidence.receipt.artifact.sha256) {
+    throw new Error('Full clean-VM qualification receipt does not bind the published Full DMG bytes.');
+  }
   const releaseSet = releaseSetMetadata(options, release, assets);
   renderCasks(release, options.releaseTag);
   return {
@@ -366,6 +461,7 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
       evidence_sha256: options.fullVmEvidenceSha256,
       result: options.fullVmResult,
       run_readback: fullVmRun,
+      evidence_receipt: fullVmEvidence.receipt,
     },
     tap: {
       repo: tapRepo,
@@ -380,19 +476,20 @@ function buildPlan(options, release, sourceReleaseRun, fullVmRun) {
 export function prepareStableDistribution(options) {
   assertInputs(options);
   const release = releaseReadback(options.releaseTag);
-  const sourceReleaseRun = actionsRunReadback(
+  const fullVmEvidence = fullVmEvidenceReadback(options);
+  const sourceReleaseRun = qualifySourceReleaseRun(actionsRunReadback(
     options.sourceReleaseRunId,
     options.appSha,
     'Source release',
-    { requireSuccess: true },
-  );
+    { requireSuccess: false },
+  ), fullVmEvidence);
   const fullVmRun = actionsRunReadback(
     options.fullVmRunId,
-    options.appSha,
+    fullVmEvidence.receipt.verification_harness.app_sha,
     'Full clean-VM',
     { requireSuccess: true },
   );
-  return buildPlan(options, release, sourceReleaseRun, fullVmRun);
+  return buildPlan(options, release, sourceReleaseRun, fullVmRun, fullVmEvidence);
 }
 
 function main() {

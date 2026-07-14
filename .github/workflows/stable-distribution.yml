@@ -47,6 +47,10 @@ on:
         description: Artifact ref containing the Full clean-VM evidence receipt
         required: true
         type: string
+      full_vm_evidence_base64:
+        description: Base64 of the exact Full clean-VM qualification receipt bytes validated by the App release owner
+        required: true
+        type: string
       full_vm_evidence_sha256:
         description: SHA-256 of the exact Full clean-VM evidence receipt bytes
         required: true
@@ -110,6 +114,30 @@ jobs:
             --expected-manifest-digest "${{ inputs.release_set_manifest_digest }}" \
             --resolved-manifest-output "$RUNNER_TEMP/opl-release-set-manifest.json"
 
+      - name: Materialize exact Full VM qualification receipt
+        id: full_vm_evidence
+        env:
+          FULL_VM_EVIDENCE_BASE64: ${{ inputs.full_vm_evidence_base64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/full-vm-evidence/artifact-qualification-receipt.json"
+          RECEIPT="$receipt" node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const encoded = process.env.FULL_VM_EVIDENCE_BASE64 ?? '';
+          if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) {
+            throw new Error('Full VM qualification receipt must use canonical base64.');
+          }
+          const bytes = Buffer.from(encoded, 'base64');
+          if (bytes.toString('base64') !== encoded) {
+            throw new Error('Full VM qualification receipt base64 is not canonical.');
+          }
+          fs.mkdirSync(path.dirname(process.env.RECEIPT), { recursive: true });
+          fs.writeFileSync(process.env.RECEIPT, bytes);
+          NODE
+          echo "receipt=$receipt" >> "$GITHUB_OUTPUT"
+
       - name: Prepare the Stable Formula and App casks as one distribution
         shell: bash
         env:
@@ -128,6 +156,7 @@ jobs:
             --release-set-manifest-digest "${{ inputs.release_set_manifest_digest }}" \
             --source-release-run-id "${{ inputs.source_release_run_id }}" \
             --full-vm-run-id "${{ inputs.full_vm_run_id }}" \
+            --full-vm-evidence "${{ steps.full_vm_evidence.outputs.receipt }}" \
             --full-vm-evidence-ref "${{ inputs.full_vm_evidence_ref }}" \
             --full-vm-evidence-sha256 "${{ inputs.full_vm_evidence_sha256 }}" \
             --full-vm-result "${{ inputs.full_vm_result }}" \
