@@ -80,6 +80,7 @@ const releaseCohortRef = `sha256:${'2'.repeat(64)}`;
 const sourceRunId = '29220000001';
 const fullVmRunId = '29220000002';
 const fullVmEvidenceRef = `opl-first-run-vm-full-${fullVmRunId}`;
+const buildSmokeHarnessSha256 = '6'.repeat(64);
 const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
 const assets = [
   [`One-Person-Lab-${version}-mac-arm64.dmg`, 'a'],
@@ -233,6 +234,31 @@ exit 99
   return bin;
 }
 
+function scopeProof({
+  verificationAppSha = appSha,
+  verificationShellSha = shellSha,
+  classification = 'same_as_artifact_cohort',
+  appChangedPaths = [],
+  shellChangedPaths = [],
+} = {}) {
+  return {
+    schema: 'opl_app_qualification_harness_scope.v1',
+    classification,
+    app: {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      base_sha: appSha,
+      head_sha: verificationAppSha,
+      changed_paths: appChangedPaths,
+    },
+    shell: {
+      repo: 'gaofeng21cn/opl-aion-shell',
+      base_sha: shellSha,
+      head_sha: verificationShellSha,
+      changed_paths: shellChangedPaths,
+    },
+  };
+}
+
 function writeFullVmEvidence(tempRoot, overrides = {}) {
   const receipt = {
     schema: 'opl_app_artifact_qualification_receipt.v1',
@@ -254,11 +280,18 @@ function writeFullVmEvidence(tempRoot, overrides = {}) {
       size_bytes: 123,
     },
     cohort: { app_sha: appSha, shell_sha: shellSha, framework_sha: frameworkSha },
+    build_manifest: {
+      schema: 'opl_app_build_artifact_cohort.v2',
+      sha256: 'f'.repeat(64),
+      smoke_harness_sha256: buildSmokeHarnessSha256,
+    },
     verification_harness: {
       app_sha: appSha,
       shell_sha: shellSha,
+      smoke_harness_sha256: buildSmokeHarnessSha256,
       differs_from_artifact_cohort: false,
-      change_scope: 'same_cohort',
+      change_scope: 'same_as_artifact_cohort',
+      scope_proof: scopeProof(),
     },
     smoke_summary: { path: 'tart-smoke-summary.json', sha256: 'a'.repeat(64) },
     ...overrides,
@@ -516,6 +549,11 @@ harnessReceipt.verification_harness = {
   app_sha: harnessSha,
   differs_from_artifact_cohort: true,
   change_scope: 'smoke_or_validator_only',
+  scope_proof: scopeProof({
+    verificationAppSha: harnessSha,
+    classification: 'smoke_or_validator_only',
+    appChangedPaths: ['.github/workflows/opl-first-run-vm.yml'],
+  }),
 };
 fs.writeFileSync(harnessReceiptPath, `${JSON.stringify(harnessReceipt, null, 2)}\n`);
 const harnessRun = runPrepare(harnessRoot, mockGh(harnessRoot, { fullVmHeadSha: harnessSha }));
@@ -529,11 +567,92 @@ wrongHarnessReceipt.verification_harness = {
   app_sha: harnessSha,
   differs_from_artifact_cohort: true,
   change_scope: 'smoke_or_validator_only',
+  scope_proof: scopeProof({
+    verificationAppSha: harnessSha,
+    classification: 'smoke_or_validator_only',
+    appChangedPaths: ['.github/workflows/opl-first-run-vm.yml'],
+  }),
 };
 fs.writeFileSync(wrongHarnessReceiptPath, `${JSON.stringify(wrongHarnessReceipt, null, 2)}\n`);
 const wrongHarnessRun = runPrepare(wrongHarnessRoot, mockGh(wrongHarnessRoot));
 assert.notEqual(wrongHarnessRun.status, 0);
 assert.match(wrongHarnessRun.stderr, /expected head SHA/);
+
+const smokeOnlyHarnessRoot = createTapFixture('opl-stable-distribution-smoke-only-harness-');
+const smokeOnlyHarnessReceiptPath = path.join(smokeOnlyHarnessRoot, 'artifact-qualification-receipt.json');
+const smokeOnlyHarnessReceipt = JSON.parse(fs.readFileSync(smokeOnlyHarnessReceiptPath, 'utf8'));
+smokeOnlyHarnessReceipt.verification_harness = {
+  ...smokeOnlyHarnessReceipt.verification_harness,
+  smoke_harness_sha256: '9'.repeat(64),
+  differs_from_artifact_cohort: true,
+  change_scope: 'smoke_or_validator_only',
+  scope_proof: scopeProof({ classification: 'smoke_or_validator_only' }),
+};
+fs.writeFileSync(smokeOnlyHarnessReceiptPath, `${JSON.stringify(smokeOnlyHarnessReceipt, null, 2)}\n`);
+const smokeOnlyHarnessRun = runPrepare(smokeOnlyHarnessRoot, mockGh(smokeOnlyHarnessRoot));
+assert.equal(smokeOnlyHarnessRun.status, 0, smokeOnlyHarnessRun.stderr);
+
+const forgedEnumRoot = createTapFixture('opl-stable-distribution-forged-enum-');
+const forgedEnumReceiptPath = path.join(forgedEnumRoot, 'artifact-qualification-receipt.json');
+const forgedEnumReceipt = JSON.parse(fs.readFileSync(forgedEnumReceiptPath, 'utf8'));
+forgedEnumReceipt.verification_harness.change_scope = 'same_cohort';
+fs.writeFileSync(forgedEnumReceiptPath, `${JSON.stringify(forgedEnumReceipt, null, 2)}\n`);
+const forgedEnumRun = runPrepare(forgedEnumRoot, mockGh(forgedEnumRoot));
+assert.notEqual(forgedEnumRun.status, 0);
+assert.match(forgedEnumRun.stderr, /change_scope must be same_as_artifact_cohort/);
+
+const forgedSmokeDigestRoot = createTapFixture('opl-stable-distribution-forged-smoke-digest-');
+const forgedSmokeDigestReceiptPath = path.join(forgedSmokeDigestRoot, 'artifact-qualification-receipt.json');
+const forgedSmokeDigestReceipt = JSON.parse(fs.readFileSync(forgedSmokeDigestReceiptPath, 'utf8'));
+forgedSmokeDigestReceipt.verification_harness.smoke_harness_sha256 = 'not-a-sha256';
+fs.writeFileSync(forgedSmokeDigestReceiptPath, `${JSON.stringify(forgedSmokeDigestReceipt, null, 2)}\n`);
+const forgedSmokeDigestRun = runPrepare(forgedSmokeDigestRoot, mockGh(forgedSmokeDigestRoot));
+assert.notEqual(forgedSmokeDigestRun.status, 0);
+assert.match(forgedSmokeDigestRun.stderr, /verification harness smoke_harness_sha256/);
+
+const forgedBuildSmokeDigestRoot = createTapFixture('opl-stable-distribution-forged-build-smoke-digest-');
+const forgedBuildSmokeDigestReceiptPath = path.join(forgedBuildSmokeDigestRoot, 'artifact-qualification-receipt.json');
+const forgedBuildSmokeDigestReceipt = JSON.parse(fs.readFileSync(forgedBuildSmokeDigestReceiptPath, 'utf8'));
+forgedBuildSmokeDigestReceipt.build_manifest.smoke_harness_sha256 = 'not-a-sha256';
+fs.writeFileSync(
+  forgedBuildSmokeDigestReceiptPath,
+  `${JSON.stringify(forgedBuildSmokeDigestReceipt, null, 2)}\n`,
+);
+const forgedBuildSmokeDigestRun = runPrepare(
+  forgedBuildSmokeDigestRoot,
+  mockGh(forgedBuildSmokeDigestRoot),
+);
+assert.notEqual(forgedBuildSmokeDigestRun.status, 0);
+assert.match(forgedBuildSmokeDigestRun.stderr, /build_manifest smoke_harness_sha256/);
+
+const missingScopeProofRoot = createTapFixture('opl-stable-distribution-missing-scope-proof-');
+const missingScopeProofReceiptPath = path.join(missingScopeProofRoot, 'artifact-qualification-receipt.json');
+const missingScopeProofReceipt = JSON.parse(fs.readFileSync(missingScopeProofReceiptPath, 'utf8'));
+delete missingScopeProofReceipt.verification_harness.scope_proof;
+fs.writeFileSync(missingScopeProofReceiptPath, `${JSON.stringify(missingScopeProofReceipt, null, 2)}\n`);
+const missingScopeProofRun = runPrepare(missingScopeProofRoot, mockGh(missingScopeProofRoot));
+assert.notEqual(missingScopeProofRun.status, 0);
+assert.match(missingScopeProofRun.stderr, /scope_proof must be an object/);
+
+const forgedFinalizerScopePlan = structuredClone(plan);
+forgedFinalizerScopePlan.full_vm.evidence_receipt.verification_harness.change_scope = 'same_cohort';
+fs.writeFileSync(
+  path.join(successRoot, 'forged-finalizer-scope-plan.json'),
+  `${JSON.stringify(forgedFinalizerScopePlan, null, 2)}\n`,
+);
+const forgedFinalizerScope = spawnSync(process.execPath, [
+  path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs'),
+  '--plan', path.join(successRoot, 'forged-finalizer-scope-plan.json'),
+  '--tap-commit', '7'.repeat(40),
+  '--annotated-tag', `stable-distribution/v${version}`,
+  '--output', path.join(successRoot, 'forged-finalizer-scope-receipt.json'),
+], {
+  cwd: successRoot,
+  encoding: 'utf8',
+  env: { ...process.env, OPL_HOMEBREW_TAP_ROOT: successRoot },
+});
+assert.notEqual(forgedFinalizerScope.status, 0);
+assert.match(forgedFinalizerScope.stderr, /change_scope must be same_as_artifact_cohort/);
 
 const digestMismatchRoot = createTapFixture('opl-stable-distribution-digest-mismatch-');
 const digestMismatchArgs = prepareArgs(digestMismatchRoot);

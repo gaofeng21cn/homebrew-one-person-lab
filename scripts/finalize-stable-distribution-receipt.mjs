@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { validateAppQualificationHarness } from './validate-app-qualification-harness.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tapRoot = process.env.OPL_HOMEBREW_TAP_ROOT
@@ -83,11 +84,9 @@ export function finalizeStableDistributionReceipt(plan, options) {
       && sourceRun.qualification.qualification_run_id === plan.full_vm?.run_id
       && sourceRun.qualification.evidence_sha256 === plan.full_vm?.evidence_sha256);
   const evidence = plan.full_vm?.evidence_receipt;
+  validateAppQualificationHarness(evidence);
   const fullAssetName = `One-Person-Lab-Full-${plan.release?.version}-mac-arm64.dmg`;
   const fullAsset = plan.release?.assets?.find((asset) => asset?.name === fullAssetName);
-  const harnessDiffers = evidence?.verification_harness?.app_sha !== plan.cohort?.app_sha
-    || evidence?.verification_harness?.shell_sha !== plan.cohort?.shell_sha;
-  const expectedHarnessScope = harnessDiffers ? 'smoke_or_validator_only' : 'same_cohort';
   const fullVmQualified = plan.full_vm?.result === 'passed'
     && plan.full_vm?.run_readback?.conclusion === 'success'
     && plan.full_vm?.run_readback?.head_sha === evidence?.verification_harness?.app_sha
@@ -100,8 +99,6 @@ export function finalizeStableDistributionReceipt(plan, options) {
     && evidence?.cohort?.app_sha === plan.cohort?.app_sha
     && evidence?.cohort?.shell_sha === plan.cohort?.shell_sha
     && evidence?.cohort?.framework_sha === plan.cohort?.framework_sha
-    && evidence?.verification_harness?.differs_from_artifact_cohort === harnessDiffers
-    && evidence?.verification_harness?.change_scope === expectedHarnessScope
     && evidence?.artifact?.name === fullAssetName
     && evidence?.artifact?.sha256 === fullAsset?.sha256;
   if (plan.release?.public !== true || plan.release?.latest !== false

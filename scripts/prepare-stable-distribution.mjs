@@ -9,6 +9,7 @@ import {
   formulaMetadataFromManifest,
   writeFileAtomically,
 } from './sync-formula-from-framework-manifest.mjs';
+import { validateAppQualificationHarness } from './validate-app-qualification-harness.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const tapRoot = process.env.OPL_HOMEBREW_TAP_ROOT
@@ -235,18 +236,7 @@ function fullVmEvidenceReadback(options) {
   if (!sha256Pattern.test(receipt.artifact?.sha256 ?? '')) {
     throw new Error('Full clean-VM qualification receipt artifact SHA-256 is invalid.');
   }
-  if (!gitShaPattern.test(receipt.verification_harness?.app_sha ?? '')) {
-    throw new Error('Full clean-VM qualification receipt verification harness SHA is invalid.');
-  }
-  if (!gitShaPattern.test(receipt.verification_harness?.shell_sha ?? '')) {
-    throw new Error('Full clean-VM qualification receipt verification harness shell SHA is invalid.');
-  }
-  const harnessDiffers = receipt.verification_harness.app_sha !== options.appSha
-    || receipt.verification_harness.shell_sha !== options.shellSha;
-  if (receipt.verification_harness.differs_from_artifact_cohort !== harnessDiffers
-    || (harnessDiffers && receipt.verification_harness.change_scope !== 'smoke_or_validator_only')) {
-    throw new Error('Full clean-VM qualification receipt does not declare the exact harness change scope.');
-  }
+  validateAppQualificationHarness(receipt);
   return { digest, receipt };
 }
 
