@@ -14,7 +14,7 @@ on:
           - diagnostic-full
           - diagnostic-stable-full
       release_tag:
-        description: Optional immutable App release tag, for example v26.7.12-nightly.123456789.1
+        description: Optional immutable App release tag, for example v26.7.12-nightly or v26.7.12-nightly.r1
         required: false
         type: string
   schedule:

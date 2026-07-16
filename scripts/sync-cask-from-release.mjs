@@ -13,7 +13,7 @@ const failureRoute = [
 const appReleaseFailurePattern = /No published nightly release found|Latest stable release|Missing release asset|must expose a sha256 digest|Draft releases|Stable cask updates must (?:read|use)|Nightly cask updates must (?:read|use)/;
 const sha256Pattern = /^sha256:(?<hash>[a-f0-9]{64})$/i;
 const stableVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])$/;
-const nightlyVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly\.[1-9][0-9]*\.[1-9][0-9]*$/;
+const nightlyVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly(?:\.r[1-9])?$/;
 const caskConflictMap = {
   'one-person-lab': ['one-person-lab-full', 'one-person-lab-nightly'],
   'one-person-lab-nightly': ['one-person-lab', 'one-person-lab-full'],
@@ -88,7 +88,7 @@ function latestNightlyTag({ allowMissingNightly }) {
   ));
   if (release) return release.tagName;
   if (allowMissingNightly) return null;
-  throw new Error('No published nightly release found with YY.M.D-nightly.<run_id>.<attempt>.');
+  throw new Error('No published nightly release found with YY.M.D-nightly or YY.M.D-nightly.r1 through .r9.');
 }
 
 function resolveTag(options) {
@@ -114,6 +114,27 @@ function assetByName(assets, name) {
   const asset = assets.find((candidate) => candidate?.name === name);
   if (!asset) throw new Error(`Missing release asset: ${name}`);
   return asset;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function standardDmgAsset(assets, { channel, version }) {
+  const expectedName = `One-Person-Lab-${version}-mac-arm64.dmg`;
+  const exact = assets.find((candidate) => candidate?.name === expectedName);
+  if (exact) return exact;
+  if (channel !== 'nightly') return assetByName(assets, expectedName);
+
+  const migratedLegacyPattern = new RegExp(
+    `^One-Person-Lab-${escapeRegExp(version)}\\.[1-9][0-9]*\\.[1-9][0-9]*-mac-arm64\\.dmg$`,
+  );
+  const migratedLegacyAssets = assets.filter((candidate) => migratedLegacyPattern.test(candidate?.name ?? ''));
+  if (migratedLegacyAssets.length === 1) return migratedLegacyAssets[0];
+  if (migratedLegacyAssets.length > 1) {
+    throw new Error(`Missing release asset: ${expectedName}; multiple legacy Nightly DMGs matched the canonical release.`);
+  }
+  return assetByName(assets, expectedName);
 }
 
 function digestOf(asset) {
@@ -182,15 +203,19 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
   ].join('\n');
 }
 
-function renderCask({ channel, version, checksum, manifestUrl, dependsOnOplFormula }) {
+function renderCask({ channel, version, checksum, manifestUrl, dmgAssetName, dependsOnOplFormula }) {
   const isFull = channel === 'full';
   const token = channel === 'nightly' ? 'one-person-lab-nightly' : isFull ? 'one-person-lab-full' : 'one-person-lab';
+  const expectedDmgAssetName = `${isFull ? 'One-Person-Lab-Full' : 'One-Person-Lab'}-${version}-mac-arm64.dmg`;
+  const renderedDmgAssetName = dmgAssetName === expectedDmgAssetName
+    ? `${isFull ? 'One-Person-Lab-Full' : 'One-Person-Lab'}-#{version}-mac-arm64.dmg`
+    : dmgAssetName;
   return [
     `cask "${token}" do`,
     `  version "${version}"`,
     `  sha256 "${checksum}"`,
     '',
-    `  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/${isFull ? 'One-Person-Lab-Full' : 'One-Person-Lab'}-#{version}-mac-arm64.dmg"`,
+    `  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/${renderedDmgAssetName}"`,
     `  name "${isFull ? 'One Person Lab Full' : 'One Person Lab'}"`,
     `  desc "${isFull ? 'Complete first-install package for One Person Lab' : 'AI-first desktop research and agent orchestration app'}"`,
     '  homepage "https://github.com/gaofeng21cn/one-person-lab-app"',
@@ -253,7 +278,7 @@ function main() {
     throw new Error('Stable cask updates must use YY.M.D without a same-day suffix.');
   }
   if (options.channel === 'nightly' && !nightlyVersionPattern.test(version)) {
-    throw new Error('Nightly cask updates must use YY.M.D-nightly.<run_id>.<attempt>.');
+    throw new Error('Nightly cask updates must use YY.M.D-nightly or YY.M.D-nightly.r1 through .r9.');
   }
 
   const release = ghJson([
@@ -280,7 +305,9 @@ function main() {
   const dmgName = options.channel === 'full'
     ? `One-Person-Lab-Full-${version}-mac-arm64.dmg`
     : `One-Person-Lab-${version}-mac-arm64.dmg`;
-  const dmgAsset = assetByName(assets, dmgName);
+  const dmgAsset = options.channel === 'full'
+    ? assetByName(assets, dmgName)
+    : standardDmgAsset(assets, { channel: options.channel, version });
   const manifestAsset = assetByName(assets, options.channel === 'full' ? 'opl-release-manifest.json' : 'latest-arm64-mac.yml');
   assetByName(assets, 'standard-local-authorization-policy.json');
   const checksum = digestOf(dmgAsset);
@@ -295,6 +322,7 @@ function main() {
     version,
     checksum,
     manifestUrl,
+    dmgAssetName: dmgAsset.name,
     dependsOnOplFormula: options.dependsOnOplFormula,
   });
   validateRenderedCask({ channel: options.channel, content });

@@ -45,7 +45,8 @@ assert.match(read('README.md'), /permits only Formula `opl` plus the three App C
 assert.match(read('README.md'), /Homebrew-owned Base update stays on the Homebrew channel/);
 assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
 assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
-assert.match(read('README.md'), /`YY\.M\.D-nightly\.<run_id>\.<attempt>`/);
+assert.match(read('README.md'), /`YY\.M\.D-nightly`; a same-day rebuild uses `\.r1` through `\.r9`/);
+assert.match(read('README.md'), /run identity stays in release evidence rather than the user-visible version/);
 assert.match(read('README.md'), /opl_stable_distribution_receipt\.v2/);
 assert.match(read('README.md'), /no eligible Nightly exists it completes as a no-op/);
 for (const channelConsumer of [
@@ -463,7 +464,7 @@ assert.match(generatedFull, /skip "Full casks track explicitly published Full co
 assert.doesNotMatch(generatedFull, /releases\/latest/);
 assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
 
-const nightlyVersion = '26.7.12-nightly.123456789.2';
+const nightlyVersion = '26.7.12-nightly';
 const nightlyBin = writeMockGh(successTmp, {
   tagName: `v${nightlyVersion}`,
   isPrerelease: true,
@@ -489,9 +490,47 @@ const nightlySuccess = spawnSync(process.execPath, [
 });
 assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
 const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
-assert.match(generatedNightly, /version "26\.7\.12-nightly\.123456789\.2"/);
+assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
+assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
 assert.match(generatedNightly, /# package_specific_formula_allowed: false/);
 assert.match(generatedNightly, /# package_specific_cask_allowed: false/);
+
+const migratedNightlyVersion = '26.7.15-nightly';
+const migratedNightlyAssetVersion = `${migratedNightlyVersion}.29445296888.1`;
+const migratedNightlyBin = writeMockGh(successTmp, {
+  tagName: `v${migratedNightlyVersion}`,
+  isPrerelease: true,
+  assets: [
+    { name: `One-Person-Lab-${migratedNightlyAssetVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+    { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+    { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+  ],
+});
+const migratedNightly = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'nightly',
+  '--release-tag',
+  `v${migratedNightlyVersion}`,
+], {
+  cwd: successTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${migratedNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.equal(migratedNightly.status, 0, migratedNightly.stderr);
+const generatedMigratedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
+assert.match(generatedMigratedNightly, /version "26\.7\.15-nightly"/);
+assert.match(
+  generatedMigratedNightly,
+  /releases\/download\/v#\{version\}\/One-Person-Lab-26\.7\.15-nightly\.29445296888\.1-mac-arm64\.dmg/,
+);
+assert.match(
+  generatedMigratedNightly,
+  /manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v26\.7\.15-nightly\/latest-arm64-mac\.yml/,
+);
 
 const noNightlyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-nightly-noop-'));
 fs.mkdirSync(path.join(noNightlyTmp, 'Casks'));
@@ -583,7 +622,9 @@ assert.match(result.stderr, /must not define release truth\/currentness/);
 for (const [channel, tag, expected] of [
   ['stable', 'v26.7.12-a', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
   ['stable', 'v1.2.3', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
-  ['nightly', 'v26.7.12-nightly', /Nightly cask updates must use YY\.M\.D-nightly/],
+  ['nightly', 'v26.7.12-nightly.r0', /Nightly cask updates must use YY\.M\.D-nightly/],
+  ['nightly', 'v26.7.12-nightly.r10', /Nightly cask updates must use YY\.M\.D-nightly/],
+  ['nightly', 'v26.7.12-nightly.123456789.1', /Nightly cask updates must use YY\.M\.D-nightly/],
   ['nightly', 'v26.7.12-nightly.123456789.0', /Nightly cask updates must use YY\.M\.D-nightly/],
 ]) {
   const invalidVersion = spawnSync(process.execPath, [

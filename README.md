@@ -63,10 +63,12 @@ Nightly builds are opt-in:
 brew install --cask one-person-lab-nightly
 ```
 
-New stable releases use `YY.M.D`. New Nightly releases use the immutable
-`YY.M.D-nightly.<run_id>.<attempt>` form. Previously mirrored releases are not
-rewritten; the next successful sync advances the Cask to a matching published
-App release with release-owned assets and digests.
+New stable releases use `YY.M.D`. The first Nightly release for a UTC date uses
+`YY.M.D-nightly`; a same-day rebuild uses `.r1` through `.r9`. GitHub Actions
+run identity stays in release evidence rather than the user-visible version.
+During the legacy-tag migration, a canonical Nightly release may retain its
+original build-identity asset filename; the Cask keeps the exact published bytes
+and digest while exposing the canonical release version.
 
 Formal Stable distribution has one write owner: `.github/workflows/stable-distribution.yml`.
 It requires the App promotion session, exact App/Shell/Framework cohort, exact
