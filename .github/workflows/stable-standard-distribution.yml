@@ -1,0 +1,145 @@
+name: Stable Standard Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag: { description: Public non-latest App release tag, required: true, type: string }
+      stable_session_id: { description: Exact App Stable session id, required: true, type: string }
+      release_cohort_ref: { description: Exact App release cohort ref, required: true, type: string }
+      app_sha: { description: Frozen App SHA, required: true, type: string }
+      shell_sha: { description: Frozen Shell SHA, required: true, type: string }
+      framework_sha: { description: Frozen Framework SHA, required: true, type: string }
+      release_set_generation: { description: Exact Release Set generation, required: true, type: string }
+      release_set_manifest_digest: { description: Exact Release Set manifest digest, required: true, type: string }
+      source_release_run_id: { description: App Standard release run id, required: true, type: string }
+      standard_vm_run_id: { description: Exact Standard VM qualification run id, required: true, type: string }
+      standard_vm_evidence_ref: { description: Exact Standard VM qualification evidence ref, required: true, type: string }
+      standard_vm_evidence_base64: { description: Canonical base64 Standard VM receipt bytes, required: true, type: string }
+      standard_vm_evidence_sha256: { description: Standard VM receipt SHA-256, required: true, type: string }
+      standard_vm_result:
+        description: Standard VM result
+        required: true
+        type: choice
+        options: [passed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opl-homebrew-tap-write
+  cancel-in-progress: false
+
+jobs:
+  distribute:
+    name: Atomically publish the OPL Formula and Standard App cask
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with: { fetch-depth: 0 }
+
+      - name: Resolve immutable Standard distribution identity
+        id: identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ inputs.release_tag }}"; version="${version#v}"
+          session_hex="${{ inputs.stable_session_id }}"; session_hex="${session_hex#sha256:}"
+          receipt_tag="stable-standard-distribution/v${version}"
+          git ls-remote --exit-code --tags origin "refs/tags/${receipt_tag}" >/dev/null 2>&1 && {
+            echo "::error::Immutable Standard distribution tag ${receipt_tag} already exists."; exit 1;
+          }
+          {
+            echo "version=$version"
+            echo "receipt_tag=$receipt_tag"
+            echo "receipt_artifact=opl-stable-distribution-receipt-${version}-${session_hex}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Resolve exact Release Set and generate Formula
+        run: |
+          node scripts/sync-formula-from-framework-manifest.mjs \
+            --expected-release-set-generation "${{ inputs.release_set_generation }}" \
+            --expected-manifest-digest "${{ inputs.release_set_manifest_digest }}" \
+            --resolved-manifest-output "$RUNNER_TEMP/opl-release-set-manifest.json"
+
+      - name: Materialize Standard VM receipt
+        id: evidence
+        env: { STANDARD_VM_EVIDENCE_BASE64: "${{ inputs.standard_vm_evidence_base64 }}" }
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="$RUNNER_TEMP/standard-vm/artifact-qualification-receipt.json"
+          RECEIPT="$receipt" node --input-type=module <<'NODE'
+          import fs from 'node:fs'; import path from 'node:path';
+          const encoded = process.env.STANDARD_VM_EVIDENCE_BASE64 || '';
+          const bytes = Buffer.from(encoded, 'base64');
+          if (!encoded || bytes.toString('base64') !== encoded) throw new Error('Standard VM receipt base64 is not canonical.');
+          fs.mkdirSync(path.dirname(process.env.RECEIPT), { recursive: true }); fs.writeFileSync(process.env.RECEIPT, bytes);
+          NODE
+          echo "receipt=$receipt" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare Standard distribution
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          node scripts/prepare-stable-standard-distribution.mjs \
+            --release-tag "${{ inputs.release_tag }}" --stable-session-id "${{ inputs.stable_session_id }}" \
+            --release-cohort-ref "${{ inputs.release_cohort_ref }}" --app-sha "${{ inputs.app_sha }}" \
+            --shell-sha "${{ inputs.shell_sha }}" --framework-sha "${{ inputs.framework_sha }}" \
+            --release-set-generation "${{ inputs.release_set_generation }}" \
+            --release-set-manifest "$RUNNER_TEMP/opl-release-set-manifest.json" \
+            --release-set-manifest-digest "${{ inputs.release_set_manifest_digest }}" \
+            --source-release-run-id "${{ inputs.source_release_run_id }}" \
+            --standard-vm-run-id "${{ inputs.standard_vm_run_id }}" \
+            --standard-vm-evidence "${{ steps.evidence.outputs.receipt }}" \
+            --standard-vm-evidence-ref "${{ inputs.standard_vm_evidence_ref }}" \
+            --standard-vm-evidence-sha256 "${{ inputs.standard_vm_evidence_sha256 }}" \
+            --standard-vm-result "${{ inputs.standard_vm_result }}" \
+            --output "$RUNNER_TEMP/opl-stable-standard-distribution-plan.json"
+
+      - name: Verify Standard-only tap boundary
+        run: node test/stable-standard-distribution.test.mjs
+
+      - name: Validate Formula and Standard cask
+        env: { HOMEBREW_GITHUB_API_TOKEN: "${{ github.token }}" }
+        run: |
+          brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          brew style "$GITHUB_REPOSITORY/opl"
+          brew audit --strict --online "$GITHUB_REPOSITORY/opl"
+          brew style --cask "$GITHUB_REPOSITORY/one-person-lab"
+          brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab"
+
+      - name: Commit Standard distribution and immutable receipt tag
+        id: commit
+        env: { RECEIPT_TAG: "${{ steps.identity.outputs.receipt_tag }}" }
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --quiet -- Casks/one-person-lab-full.rb Casks/one-person-lab-nightly.rb || {
+            echo "::error::Standard distribution may not modify Full or Nightly casks."; exit 1;
+          }
+          for required in Formula/opl.rb Casks/one-person-lab.rb; do
+            test -n "$(git status --porcelain -- "$required")" || { echo "::error::Standard distribution must advance $required."; exit 1; }
+          done
+          git add Formula/opl.rb Casks/one-person-lab.rb
+          git commit -m "Distribute One Person Lab ${{ steps.identity.outputs.version }} Standard cohort"
+          tap_commit="$(git rev-parse HEAD)"
+          node scripts/finalize-stable-standard-distribution-receipt.mjs \
+            --plan "$RUNNER_TEMP/opl-stable-standard-distribution-plan.json" --tap-commit "$tap_commit" \
+            --annotated-tag "$RECEIPT_TAG" --output "$RUNNER_TEMP/opl-stable-distribution-receipt.json"
+          git tag -a "$RECEIPT_TAG" "$tap_commit" -F "$RUNNER_TEMP/opl-stable-distribution-receipt.json"
+          git push --atomic origin HEAD:main "refs/tags/${RECEIPT_TAG}"
+          echo "tap_commit=$tap_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Verify remote commit and receipt tag
+        env: { RECEIPT_TAG: "${{ steps.identity.outputs.receipt_tag }}", TAP_COMMIT: "${{ steps.commit.outputs.tap_commit }}" }
+        run: |
+          test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$TAP_COMMIT"
+          test "$(git ls-remote origin "refs/tags/${RECEIPT_TAG}^{}" | awk '{print $1}')" = "$TAP_COMMIT"
+
+      - name: Upload Standard distribution receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.identity.outputs.receipt_artifact }}
+          path: ${{ runner.temp }}/opl-stable-distribution-receipt.json
+          if-no-files-found: error
+          retention-days: 90
