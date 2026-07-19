@@ -12,6 +12,7 @@ cask "one-person-lab-nightly" do
   end
 
   conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
+  depends_on formula: "opl"
   depends_on macos: :big_sur
   depends_on arch: :arm64
 
