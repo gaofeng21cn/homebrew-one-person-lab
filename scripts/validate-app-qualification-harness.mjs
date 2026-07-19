@@ -1,7 +1,10 @@
 const gitShaPattern = /^[a-f0-9]{40}$/;
 const sha256Pattern = /^[a-f0-9]{64}$/;
 const buildManifestSchema = 'opl_app_build_artifact_cohort.v2';
-const scopeProofSchema = 'opl_app_qualification_harness_scope.v1';
+const scopeProofSchemas = new Set([
+  'opl_app_qualification_harness_scope.v1',
+  'opl_app_qualification_harness_scope.v2',
+]);
 const sameCohortScope = 'same_as_artifact_cohort';
 const changedHarnessScope = 'smoke_or_validator_only';
 
@@ -71,6 +74,71 @@ function validateScopeEntry(value, expected, label) {
   }
 }
 
+function validateScopeProofV2(proof, receipt) {
+  assertExactKeys(
+    proof,
+    ['schema', 'profile', 'classification', 'expectations', 'reuse_authorization', 'app', 'shell'],
+    'Qualification harness scope_proof',
+  );
+  if (!['standard', 'full'].includes(proof.profile)) {
+    throw new Error('Qualification harness scope_proof profile must be standard or full.');
+  }
+  if (['standard', 'full'].includes(receipt.package_profile) && proof.profile !== receipt.package_profile) {
+    throw new Error('Qualification harness scope_proof profile is inconsistent with the receipt.');
+  }
+
+  const expectations = assertRecord(proof.expectations, 'Qualification harness scope_proof expectations');
+  assertExactKeys(expectations, [
+    'artifact_semantic_digest',
+    'verification_semantic_digest',
+    'semantic_equal',
+    'artifact_probe_digest',
+    'verification_probe_digest',
+    'probe_equal',
+  ], 'Qualification harness scope_proof expectations');
+  for (const field of [
+    'artifact_semantic_digest',
+    'verification_semantic_digest',
+    'artifact_probe_digest',
+    'verification_probe_digest',
+  ]) assertSha256(expectations[field], `Qualification harness scope_proof expectations ${field}`);
+  if (expectations.semantic_equal !== (
+    expectations.artifact_semantic_digest === expectations.verification_semantic_digest
+  )) throw new Error('Qualification harness scope_proof semantic_equal is inconsistent.');
+  if (expectations.probe_equal !== (
+    expectations.artifact_probe_digest === expectations.verification_probe_digest
+  )) throw new Error('Qualification harness scope_proof probe_equal is inconsistent.');
+
+  const authorization = assertRecord(
+    proof.reuse_authorization,
+    'Qualification harness scope_proof reuse_authorization',
+  );
+  assertExactKeys(
+    authorization,
+    ['allowed', 'reason', 'forbidden_paths'],
+    'Qualification harness scope_proof reuse_authorization',
+  );
+  if (typeof authorization.allowed !== 'boolean' || typeof authorization.reason !== 'string' || !authorization.reason) {
+    throw new Error('Qualification harness scope_proof reuse_authorization is malformed.');
+  }
+  const forbidden = assertRecord(
+    authorization.forbidden_paths,
+    'Qualification harness scope_proof forbidden_paths',
+  );
+  assertExactKeys(forbidden, ['app', 'shell'], 'Qualification harness scope_proof forbidden_paths');
+  const forbiddenApp = validateChangedPaths(forbidden.app, 'Forbidden App');
+  const forbiddenShell = validateChangedPaths(forbidden.shell, 'Forbidden Shell');
+  if (authorization.allowed !== (
+    expectations.semantic_equal
+    && expectations.probe_equal
+    && forbiddenApp.length === 0
+    && forbiddenShell.length === 0
+  )) throw new Error('Qualification harness scope_proof reuse_authorization allowed is inconsistent.');
+  if (!authorization.allowed) {
+    throw new Error(`Qualification harness scope_proof does not authorize reuse: ${authorization.reason}.`);
+  }
+}
+
 export function validateAppQualificationHarness(receipt) {
   const cohort = assertRecord(receipt?.cohort, 'Qualification receipt cohort');
   assertGitSha(cohort.app_sha, 'Qualification receipt cohort app_sha');
@@ -107,9 +175,13 @@ export function validateAppQualificationHarness(receipt) {
   }
 
   const proof = assertRecord(harness.scope_proof, 'Qualification receipt verification harness scope_proof');
-  assertExactKeys(proof, ['schema', 'classification', 'app', 'shell'], 'Qualification harness scope_proof');
-  if (proof.schema !== scopeProofSchema) {
-    throw new Error(`Qualification harness scope_proof schema must be ${scopeProofSchema}.`);
+  if (!scopeProofSchemas.has(proof.schema)) {
+    throw new Error(`Qualification harness scope_proof schema must be one of ${[...scopeProofSchemas].join(', ')}.`);
+  }
+  if (proof.schema === 'opl_app_qualification_harness_scope.v1') {
+    assertExactKeys(proof, ['schema', 'classification', 'app', 'shell'], 'Qualification harness scope_proof');
+  } else {
+    validateScopeProofV2(proof, receipt);
   }
   if (proof.classification !== expectedScope || proof.classification !== harness.change_scope) {
     throw new Error('Qualification harness scope_proof classification is inconsistent.');

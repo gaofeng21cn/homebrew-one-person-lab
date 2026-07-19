@@ -259,6 +259,39 @@ function scopeProof({
   };
 }
 
+function scopeProofV2() {
+  return {
+    schema: 'opl_app_qualification_harness_scope.v2',
+    profile: 'full',
+    classification: 'same_as_artifact_cohort',
+    expectations: {
+      artifact_semantic_digest: '7'.repeat(64),
+      verification_semantic_digest: '7'.repeat(64),
+      semantic_equal: true,
+      artifact_probe_digest: '8'.repeat(64),
+      verification_probe_digest: '8'.repeat(64),
+      probe_equal: true,
+    },
+    reuse_authorization: {
+      allowed: true,
+      reason: 'exact_cohort',
+      forbidden_paths: { app: [], shell: [] },
+    },
+    app: {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      base_sha: appSha,
+      head_sha: appSha,
+      changed_paths: [],
+    },
+    shell: {
+      repo: 'gaofeng21cn/opl-aion-shell',
+      base_sha: shellSha,
+      head_sha: shellSha,
+      changed_paths: [],
+    },
+  };
+}
+
 function writeFullVmEvidence(tempRoot, overrides = {}) {
   const receipt = {
     schema: 'opl_app_artifact_qualification_receipt.v1',
@@ -539,6 +572,14 @@ const cancelledSource = runPrepare(cancelledSourceRoot, mockGh(cancelledSourceRo
 }));
 assert.notEqual(cancelledSource.status, 0);
 assert.match(cancelledSource.stderr, /Publish Full first-install assets \(cancelled\)/);
+
+const scopeV2Root = createTapFixture('opl-stable-distribution-scope-v2-');
+const scopeV2ReceiptPath = path.join(scopeV2Root, 'artifact-qualification-receipt.json');
+const scopeV2Receipt = JSON.parse(fs.readFileSync(scopeV2ReceiptPath, 'utf8'));
+scopeV2Receipt.verification_harness.scope_proof = scopeProofV2();
+fs.writeFileSync(scopeV2ReceiptPath, `${JSON.stringify(scopeV2Receipt, null, 2)}\n`);
+const scopeV2Run = runPrepare(scopeV2Root, mockGh(scopeV2Root));
+assert.equal(scopeV2Run.status, 0, scopeV2Run.stderr);
 
 const harnessSha = '9'.repeat(40);
 const harnessRoot = createTapFixture('opl-stable-distribution-harness-scope-');
