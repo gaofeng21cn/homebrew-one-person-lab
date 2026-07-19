@@ -17,6 +17,11 @@ assert.match(workflow, /git add Formula\/opl\.rb Casks\/one-person-lab\.rb/);
 assert.doesNotMatch(workflow, /git add[^\n]*one-person-lab-full/);
 assert.match(workflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb/);
 assert.match(workflow, /stable-standard-distribution\/v\$\{version\}/);
+assert.match(workflow, /tap_name="\$\{GITHUB_REPOSITORY\/\\\/homebrew-\/\\\/\}"/);
+assert.match(workflow, /install -m 0644 Formula\/opl\.rb "\$tap_root\/Formula\/opl\.rb"/);
+assert.match(workflow, /install -m 0644 Casks\/one-person-lab\.rb "\$tap_root\/Casks\/one-person-lab\.rb"/);
+assert.match(workflow, /brew audit --strict --online "\$tap_name\/opl"/);
+assert.match(workflow, /brew audit --cask --online "\$tap_name\/one-person-lab"/);
 
 const sourceRunId = '29686334520';
 const sourceAppSha = 'a'.repeat(40);

@@ -101,11 +101,16 @@ jobs:
       - name: Validate Formula and Standard cask
         env: { HOMEBREW_GITHUB_API_TOKEN: "${{ github.token }}" }
         run: |
-          brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
-          brew style "$GITHUB_REPOSITORY/opl"
-          brew audit --strict --online "$GITHUB_REPOSITORY/opl"
-          brew style --cask "$GITHUB_REPOSITORY/one-person-lab"
-          brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab"
+          tap_name="${GITHUB_REPOSITORY/\/homebrew-/\/}"
+          brew tap "$tap_name" "$GITHUB_WORKSPACE"
+          tap_root="$(brew --repository "$tap_name")"
+          mkdir -p "$tap_root/Formula" "$tap_root/Casks"
+          install -m 0644 Formula/opl.rb "$tap_root/Formula/opl.rb"
+          install -m 0644 Casks/one-person-lab.rb "$tap_root/Casks/one-person-lab.rb"
+          brew style "$tap_name/opl"
+          brew audit --strict --online "$tap_name/opl"
+          brew style --cask "$tap_name/one-person-lab"
+          brew audit --cask --online "$tap_name/one-person-lab"
 
       - name: Commit Standard distribution and immutable receipt tag
         id: commit
