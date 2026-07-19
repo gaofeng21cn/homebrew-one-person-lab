@@ -72,12 +72,49 @@ function releaseReadback(options) {
   return release;
 }
 
-function runReadback(id, expectedHead, label) {
-  const run = ghJson(['run', 'view', id, '--repo', appRepo, '--json', 'databaseId,headSha,status,conclusion,url']);
-  if (String(run.databaseId) !== id || run.headSha !== expectedHead || run.status !== 'completed' || run.conclusion !== 'success') {
-    throw new Error(`${label} must be completed/success on ${expectedHead}.`);
+export function qualifyCompletedRun(run, id, expectedHead, label, {
+  allowedFailureJob = null,
+  requiredSuccessJobs = [],
+} = {}) {
+  if (String(run.databaseId) !== id || run.headSha !== expectedHead || run.status !== 'completed') {
+    throw new Error(`${label} must be completed on ${expectedHead}.`);
   }
-  return run;
+  const jobs = (run.jobs ?? []).map((job) => ({
+    name: job.name,
+    status: job.status,
+    conclusion: job.conclusion,
+  }));
+  const blockingJobs = jobs.filter((job) => !['success', 'skipped'].includes(job.conclusion));
+  const supersededFailure = run.conclusion === 'failure'
+    && allowedFailureJob
+    && blockingJobs.length === 1
+    && blockingJobs[0].name === allowedFailureJob
+    && blockingJobs[0].conclusion === 'failure';
+  if (run.conclusion !== 'success' && !supersededFailure) {
+    const blockers = blockingJobs.map((job) => `${job.name} (${job.conclusion})`).join(', ') || '(none reported)';
+    throw new Error(`${label} has unexpected failed jobs: ${blockers}.`);
+  }
+  for (const required of requiredSuccessJobs) {
+    if (!jobs.some((job) => job.name === required && job.status === 'completed' && job.conclusion === 'success')) {
+      throw new Error(`${label} lacks successful required job ${required}.`);
+    }
+  }
+  return {
+    ...run,
+    jobs,
+    qualification: {
+      mode: supersededFailure ? 'exact_standard_receipt_supersession' : 'source_run_success',
+      superseded_failed_jobs: supersededFailure ? [allowedFailureJob] : [],
+    },
+  };
+}
+
+function runReadback(id, expectedHead, label, options = {}) {
+  const run = ghJson([
+    'run', 'view', id, '--repo', appRepo,
+    '--json', 'databaseId,headSha,status,conclusion,url,jobs',
+  ]);
+  return qualifyCompletedRun(run, id, expectedHead, label, options);
 }
 
 function asset(release, name) {
@@ -144,8 +181,17 @@ export function prepareStableStandardDistribution(options) {
   const release = releaseReadback(options);
   const version = stableTag.exec(options.release_tag).groups.version;
   const evidence = validateStandardEvidence(options, release);
-  const sourceRun = runReadback(options.source_release_run_id, options.app_sha, 'Source release');
-  const standardVmRun = runReadback(options.standard_vm_run_id, evidence.verification_harness.app_sha, 'Standard VM');
+  const supersededAssetJob = 'Verify remote standard release assets';
+  const sourceRun = runReadback(options.source_release_run_id, options.app_sha, 'Source release', {
+    allowedFailureJob: supersededAssetJob,
+  });
+  const standardVmRun = runReadback(options.standard_vm_run_id, evidence.verification_harness.app_sha, 'Standard VM', {
+    allowedFailureJob: supersededAssetJob,
+    requiredSuccessJobs: [
+      'Run clean standard first-run VM smoke / Clean VM first launch',
+      'Run clean standard first-run VM smoke / Persist qualification attempt receipt',
+    ],
+  });
   const manifest = JSON.parse(fs.readFileSync(path.resolve(options.release_set_manifest), 'utf8'));
   const releaseSet = manifest.release_set;
   const standardDmg = asset(release, `One-Person-Lab-${version}-mac-arm64.dmg`);

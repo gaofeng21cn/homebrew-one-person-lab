@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { finalizeStableStandardDistributionReceipt } from '../scripts/finalize-stable-standard-distribution-receipt.mjs';
+import { qualifyCompletedRun } from '../scripts/prepare-stable-standard-distribution.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflow = fs.readFileSync(path.join(repo, '.github/workflows/stable-standard-distribution.yml'), 'utf8');
@@ -16,6 +17,39 @@ assert.match(workflow, /git add Formula\/opl\.rb Casks\/one-person-lab\.rb/);
 assert.doesNotMatch(workflow, /git add[^\n]*one-person-lab-full/);
 assert.match(workflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb/);
 assert.match(workflow, /stable-standard-distribution\/v\$\{version\}/);
+
+const sourceRunId = '29686334520';
+const sourceAppSha = 'a'.repeat(40);
+const supersededJob = 'Verify remote standard release assets';
+const successfulVmJobs = [
+  'Run clean standard first-run VM smoke / Clean VM first launch',
+  'Run clean standard first-run VM smoke / Persist qualification attempt receipt',
+];
+const recoveredRun = qualifyCompletedRun({
+  databaseId: Number(sourceRunId),
+  headSha: sourceAppSha,
+  status: 'completed',
+  conclusion: 'failure',
+  jobs: [
+    ...successfulVmJobs.map((name) => ({ name, status: 'completed', conclusion: 'success' })),
+    { name: supersededJob, status: 'completed', conclusion: 'failure' },
+  ],
+}, sourceRunId, sourceAppSha, 'Standard VM', {
+  allowedFailureJob: supersededJob,
+  requiredSuccessJobs: successfulVmJobs,
+});
+assert.equal(recoveredRun.qualification.mode, 'exact_standard_receipt_supersession');
+assert.throws(() => qualifyCompletedRun({
+  databaseId: Number(sourceRunId), headSha: sourceAppSha, status: 'completed', conclusion: 'failure',
+  jobs: [{ name: 'Release source gate', status: 'completed', conclusion: 'failure' }],
+}, sourceRunId, sourceAppSha, 'Source release', { allowedFailureJob: supersededJob }), /unexpected failed jobs/);
+assert.throws(() => qualifyCompletedRun({
+  databaseId: Number(sourceRunId), headSha: sourceAppSha, status: 'completed', conclusion: 'failure',
+  jobs: [{ name: supersededJob, status: 'completed', conclusion: 'failure' }],
+}, sourceRunId, sourceAppSha, 'Standard VM', {
+  allowedFailureJob: supersededJob,
+  requiredSuccessJobs: successfulVmJobs,
+}), /lacks successful required job/);
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-distribution-'));
 fs.mkdirSync(path.join(root, 'Formula'), { recursive: true });
