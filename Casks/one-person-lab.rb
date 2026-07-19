@@ -1,6 +1,6 @@
 cask "one-person-lab" do
-  version "26.7.12"
-  sha256 "628c5eb3d439760f7dc0779920d0d8d062fa2e9f27d4c9046c99a846615f7c13"
+  version "26.7.18"
+  sha256 "176348058499c80075a7063a733335826ce500d040783bde63d76bdcd0d1ca88"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
   name "One Person Lab"
@@ -13,15 +13,16 @@ cask "one-person-lab" do
   end
 
   conflicts_with cask: ["one-person-lab-full", "one-person-lab-nightly"]
+  depends_on formula: "opl"
   depends_on macos: :big_sur
   depends_on arch: :arm64
 
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: stable
   # package_kind: app_standard
-  # version: 26.7.12
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.12/latest-arm64-mac.yml
-  # checksum: sha256:628c5eb3d439760f7dc0779920d0d8d062fa2e9f27d4c9046c99a846615f7c13
+  # version: 26.7.18
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.18/latest-arm64-mac.yml
+  # checksum: sha256:176348058499c80075a7063a733335826ce500d040783bde63d76bdcd0d1ca88
   # downstream_mirror_only: true
   # release_truth_authority: app_release
   # failure_feedback_owner: app_release_operator
