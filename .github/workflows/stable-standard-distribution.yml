@@ -111,7 +111,7 @@ jobs:
           brew audit --strict --online "$tap_name/opl"
           brew style --cask "$tap_name/one-person-lab"
           # The App release intentionally remains non-latest until the downstream VM gate succeeds.
-          brew audit --cask --online --except=livecheck_version "$tap_name/one-person-lab"
+          brew audit --cask --online --except=livecheck,livecheck_version "$tap_name/one-person-lab"
 
       - name: Commit Standard distribution and immutable receipt tag
         id: commit
