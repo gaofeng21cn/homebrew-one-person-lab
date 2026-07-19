@@ -81,3 +81,15 @@ assert.equal(receipt.standard_vm.result, 'passed');
 assert.equal(receipt.tap.standard_cask.path, 'Casks/one-person-lab.rb');
 assert.equal('full_cask' in receipt.tap, false);
 assert.equal('nightly_cask' in receipt.tap, false);
+
+const recoveredPlan = structuredClone(plan);
+recoveredPlan.release.source_release_run = recoveredRun;
+recoveredPlan.standard_vm.run_readback = recoveredRun;
+assert.equal(finalizeStableStandardDistributionReceipt(recoveredPlan, {
+  tapCommit: 'c'.repeat(40), annotatedTag: 'stable-standard-distribution/v26.7.18',
+}).status, 'verified');
+const overclaimedPlan = structuredClone(recoveredPlan);
+overclaimedPlan.standard_vm.run_readback.qualification.superseded_failed_jobs = ['Release source gate'];
+assert.throws(() => finalizeStableStandardDistributionReceipt(overclaimedPlan, {
+  tapCommit: 'c'.repeat(40), annotatedTag: 'stable-standard-distribution/v26.7.18',
+}), /no longer carries passed Standard release evidence/);

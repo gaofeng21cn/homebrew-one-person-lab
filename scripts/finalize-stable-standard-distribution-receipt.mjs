@@ -8,10 +8,23 @@ import { fileURLToPath } from 'node:url';
 const scriptRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gitSha = /^[a-f0-9]{40}$/;
 const digestRef = /^sha256:[a-f0-9]{64}$/;
+const supersededAssetJob = 'Verify remote standard release assets';
 
 function sha256(relativePath) {
   const root = path.resolve(process.env.OPL_HOMEBREW_TAP_ROOT || scriptRoot);
   return crypto.createHash('sha256').update(fs.readFileSync(path.join(root, relativePath))).digest('hex');
+}
+
+function carriesPassedRunEvidence(run) {
+  if (run?.conclusion === 'success') return true;
+  const blockingJobs = (run?.jobs ?? []).filter((job) => !['success', 'skipped'].includes(job.conclusion));
+  return run?.status === 'completed'
+    && run?.conclusion === 'failure'
+    && run?.qualification?.mode === 'exact_standard_receipt_supersession'
+    && JSON.stringify(run.qualification.superseded_failed_jobs) === JSON.stringify([supersededAssetJob])
+    && blockingJobs.length === 1
+    && blockingJobs[0].name === supersededAssetJob
+    && blockingJobs[0].conclusion === 'failure';
 }
 
 export function finalizeStableStandardDistributionReceipt(plan, options) {
@@ -20,9 +33,9 @@ export function finalizeStableStandardDistributionReceipt(plan, options) {
   const expectedTag = `stable-standard-distribution/v${plan.release?.version}`;
   if (options.annotatedTag !== expectedTag) throw new Error(`annotated_tag must be ${expectedTag}.`);
   if (plan.release?.public !== true || plan.release?.latest !== false
-    || plan.release?.source_release_run?.conclusion !== 'success'
+    || !carriesPassedRunEvidence(plan.release?.source_release_run)
     || plan.standard_vm?.result !== 'passed'
-    || plan.standard_vm?.run_readback?.conclusion !== 'success'
+    || !carriesPassedRunEvidence(plan.standard_vm?.run_readback)
     || plan.standard_vm?.evidence_receipt?.status !== 'passed') {
     throw new Error('Standard distribution no longer carries passed Standard release evidence.');
   }
