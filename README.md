@@ -70,16 +70,25 @@ During the legacy-tag migration, a canonical Nightly release may retain its
 original build-identity asset filename; the Cask keeps the exact published bytes
 and digest while exposing the canonical release version.
 
-Formal Stable distribution has one write owner: `.github/workflows/stable-distribution.yml`.
-It requires the App promotion session, exact App/Shell/Framework cohort, exact
-Release Set generation and digest, successful source release, and passed Full
-clean-VM evidence. The workflow generates Formula `opl`, derives Standard and
-Full from one public non-latest App release, binds all three casks to the Formula,
-and atomically pushes `main` with the immutable annotated tag
-`stable-distribution/v<version>`. That tag and the Actions artifact carry
-`opl_stable_distribution_receipt.v2`. The scheduled sync workflow writes Nightly
-only; when no eligible Nightly exists it completes as a no-op. Its Stable/Full
-modes are read-only diagnostics and cannot publish casks or Formulae.
+Formal Stable tap mutation has two explicit workflow owners serialized by the
+shared `opl-homebrew-tap-write` concurrency group:
+
+- `.github/workflows/stable-standard-distribution.yml` publishes Formula `opl`
+  plus the Standard cask from an exact Release Set cohort and passed Standard VM
+  evidence. It leaves Full and Nightly unchanged and publishes an immutable
+  `stable-standard-distribution/v<version>` tag carrying
+  `opl_stable_distribution_receipt.v3`.
+- `.github/workflows/stable-distribution.yml` publishes Formula `opl`, Standard,
+  and Full from one public non-latest App release plus passed Full clean-VM
+  evidence. It atomically publishes `stable-distribution/v<version>` with
+  `opl_stable_distribution_receipt.v2`.
+
+Both routes require the App promotion session, exact App/Shell/Framework cohort,
+exact Release Set generation and digest, and owner-provided qualification evidence.
+The scheduled sync workflow writes Nightly only; when no eligible Nightly exists it completes as a no-op.
+Its Stable/Full modes are read-only diagnostics and route
+operators to one of the two formal Stable workflows; they cannot publish casks or
+Formulae.
 
 The App promotion owner passes the already validated Full qualification receipt
 as canonical base64 workflow input. The tap reconstructs the exact bytes and

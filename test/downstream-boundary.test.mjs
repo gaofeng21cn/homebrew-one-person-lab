@@ -47,6 +47,9 @@ assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be a
 assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
 assert.match(read('README.md'), /`YY\.M\.D-nightly`; a same-day rebuild uses `\.r1` through `\.r9`/);
 assert.match(read('README.md'), /run identity stays in release evidence rather than the user-visible version/);
+assert.match(read('README.md'), /stable-standard-distribution\.yml/);
+assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
+assert.match(read('README.md'), /stable-distribution\.yml/);
 assert.match(read('README.md'), /opl_stable_distribution_receipt\.v2/);
 assert.match(read('README.md'), /no eligible Nightly exists it completes as a no-op/);
 for (const channelConsumer of [

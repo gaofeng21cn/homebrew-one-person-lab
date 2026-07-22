@@ -92,7 +92,7 @@ jobs:
           done
           if [ "$write_root" != "$GITHUB_WORKSPACE" ]; then
             git diff --no-index -- Casks "$write_root/Casks" || test $? -eq 1
-            echo "Stable diagnostic completed without modifying the tap checkout. Formal Stable writes require stable-distribution.yml plus session/cohort/VM evidence."
+            echo "Stable diagnostic completed without modifying the tap checkout. Formal Stable writes require stable-standard-distribution.yml or stable-distribution.yml plus session/cohort/VM evidence."
           fi
 
       - name: Validate tap

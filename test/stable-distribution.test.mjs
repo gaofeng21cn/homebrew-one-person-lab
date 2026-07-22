@@ -63,7 +63,10 @@ assert.doesNotMatch(nightlyWorkflow, /git add Formula\/opl\.rb/);
 assert.doesNotMatch(nightlyWorkflow, /^\s+- stable$/m);
 assert.doesNotMatch(nightlyWorkflow, /^\s+- full$/m);
 assert.doesNotMatch(nightlyWorkflow, /^\s+- all$/m);
-assert.match(nightlyWorkflow, /Formal Stable writes require stable-distribution\.yml plus session\/cohort\/VM evidence/);
+assert.match(
+  nightlyWorkflow,
+  /Formal Stable writes require stable-standard-distribution\.yml or stable-distribution\.yml plus session\/cohort\/VM evidence/,
+);
 
 const version = '26.7.13';
 const tag = `v${version}`;
