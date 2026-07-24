@@ -85,14 +85,14 @@ jobs:
             if [ "$channel" = "nightly" ] && [ -z "$RELEASE_TAG" ] && [ "$ALLOW_MISSING_NIGHTLY" = "true" ]; then
               args+=(--allow-missing-nightly)
             fi
-            if [ -f Formula/opl.rb ]; then
+            if [ -f Formula/opl.rb ] && [ "$channel" != "full" ]; then
               args+=(--with-opl-formula)
             fi
             (cd "$write_root" && node "$GITHUB_WORKSPACE/scripts/sync-cask-from-release.mjs" "${args[@]}")
           done
           if [ "$write_root" != "$GITHUB_WORKSPACE" ]; then
             git diff --no-index -- Casks "$write_root/Casks" || test $? -eq 1
-            echo "Stable diagnostic completed without modifying the tap checkout. Formal Stable writes require stable-standard-distribution.yml or stable-distribution.yml plus session/cohort/VM evidence."
+            echo "Stable diagnostic completed without modifying the tap checkout. Formal Standard writes require stable-standard-distribution.yml; formal Full writes belong to the App protected append_full publisher."
           fi
 
       - name: Validate tap
@@ -108,12 +108,21 @@ jobs:
             exit 1
           fi
           if [ -f Formula/opl.rb ]; then
-            for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb; do
+            for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; do
               grep -q 'depends_on formula: "opl"' "$cask" || { echo "::error::$cask must depend on the published opl Formula."; exit 1; }
             done
-          elif grep -R 'depends_on formula: "opl"' Casks; then
-            echo "::error::Casks must not depend on opl before Formula/opl.rb is published."
+          elif grep -q 'depends_on formula: "opl"' Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
+            echo "::error::Standard and Nightly casks must not depend on opl before Formula/opl.rb is published."
             exit 1
+          fi
+          legacy_full_sha256="1bbc1afba6ca7f01c82b064dbf764d91f2f8ab6129bfec4ed65b160e171ca84e"
+          if grep -q 'depends_on formula: "opl"' Casks/one-person-lab-full.rb; then
+            actual_full_sha256="$(shasum -a 256 Casks/one-person-lab-full.rb | awk '{print $1}')"
+            if [ "$actual_full_sha256" != "$legacy_full_sha256" ]; then
+              echo "::error::Full casks consume the App-owned embedded Base and must not depend on Formula opl."
+              exit 1
+            fi
+            echo "::warning::Accepting the exact legacy Full cask as read-only migration input; any replacement must remove the Formula dependency."
           fi
           if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' | grep .; then
             echo "::error::This tap may publish only the stable, nightly, and Full App casks."

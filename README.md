@@ -14,8 +14,10 @@ fail-closed: it reads one immutable Release Set generation and verifies that
 `ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable` has the same digest.
 It then generates `Formula/opl.rb` only from the owner-approved
 `framework_core.homebrew_formula` projection, computes the transport checksum
-from downloaded bytes, and adds the same-tap Formula dependency to all three
-casks in the same atomic distribution commit and receipt.
+from downloaded bytes, and adds the same-tap Formula dependency to the Standard
+cask in the same atomic distribution commit and receipt. Nightly also consumes
+that Formula when present. Full consumes the App-owned embedded Base and must
+not add a Formula dependency.
 
 ## Aligned Installation Semantics
 
@@ -26,10 +28,12 @@ CLI/runtime and all Framework production dependencies, including Temporal.
 Formula does not install the desktop App or any OPL Package, does not create or
 reconcile user workspace state, and does not run Package lifecycle operations.
 
-When published, the three App casks depend on that same Formula.
-Installing an App cask therefore installs two independently maintained products:
-the OPL base carrier and the OPL App GUI. The first App launch invokes the
-Framework reconcile contract; a Formula-only CLI installation performs the same
+The Standard and Nightly casks depend on that same Formula. Installing either
+cask therefore installs two independently maintained products: the OPL base
+carrier and the OPL App GUI. The Full cask instead installs the Full DMG, whose
+embedded Base is the sole first-install carrier; Homebrew must not install a
+second Formula carrier for Full. The first App launch invokes the Framework
+reconcile contract; a Formula-only CLI installation performs the same
 initialization explicitly with:
 
 ```bash
@@ -70,30 +74,26 @@ During the legacy-tag migration, a canonical Nightly release may retain its
 original build-identity asset filename; the Cask keeps the exact published bytes
 and digest while exposing the canonical release version.
 
-Formal Stable tap mutation has two explicit workflow owners serialized by the
-shared `opl-homebrew-tap-write` concurrency group:
+Formal Standard tap mutation has one workflow owner serialized by the shared
+`opl-homebrew-tap-write` concurrency group:
 
 - `.github/workflows/stable-standard-distribution.yml` publishes Formula `opl`
   plus the Standard cask from an exact Release Set cohort and passed Standard VM
   evidence. It leaves Full and Nightly unchanged and publishes an immutable
   `stable-standard-distribution/v<version>` tag carrying
   `opl_stable_distribution_receipt.v3`.
-- `.github/workflows/stable-distribution.yml` publishes Formula `opl`, Standard,
-  and Full from one public non-latest App release plus passed Full clean-VM
-  evidence. It atomically publishes `stable-distribution/v<version>` with
-  `opl_stable_distribution_receipt.v2`.
 
-Both routes require the App promotion session, exact App/Shell/Framework cohort,
-exact Release Set generation and digest, and owner-provided qualification evidence.
+The Standard route requires the App promotion session, exact
+App/Shell/Framework cohort, exact Release Set generation and digest, and
+owner-provided qualification evidence. Full is an App-owned additive release
+operation: the protected App `append_full` publisher generates and writes the
+Full Cask from the qualified Full DMG and embedded Base bytes. This tap does not
+own a second Full publisher; it validates, indexes, and reads back that App-owned
+projection.
 The scheduled sync workflow writes Nightly only; when no eligible Nightly exists it completes as a no-op.
 Its Stable/Full modes are read-only diagnostics and route
-operators to one of the two formal Stable workflows; they cannot publish casks or
-Formulae.
-
-The App promotion owner passes the already validated Full qualification receipt
-as canonical base64 workflow input. The tap reconstructs the exact bytes and
-checks their owner-provided SHA-256 before reading the receipt; it does not rely
-on a tap-scoped `GITHUB_TOKEN` to read App repository Actions artifacts.
+Standard operators to the formal Standard workflow and Full operators to the App
+protected `append_full` publisher; they cannot publish casks or Formulae.
 
 Complete first-install package:
 
@@ -128,7 +128,8 @@ duplicating the active Framework carrier.
 If the App reports that setup or repair is needed, follow the in-app prompt.
 
 The `one-person-lab-full` cask is an explicit stable first-install surface for
-the larger Full DMG. It stays outside standard updater metadata. Package
+the larger Full DMG and is written by the App protected release path. It stays
+outside standard updater metadata and does not depend on Formula `opl`. Package
 material carried inside that App-owned asset remains governed by OPL Package
 lifecycle receipts after installation; Homebrew does not version or mutate it.
 This tap permits only Formula `opl` plus the three App Casks. It never publishes

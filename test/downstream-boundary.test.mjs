@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -49,8 +50,9 @@ assert.match(read('README.md'), /`YY\.M\.D-nightly`; a same-day rebuild uses `\.
 assert.match(read('README.md'), /run identity stays in release evidence rather than the user-visible version/);
 assert.match(read('README.md'), /stable-standard-distribution\.yml/);
 assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
-assert.match(read('README.md'), /stable-distribution\.yml/);
-assert.match(read('README.md'), /opl_stable_distribution_receipt\.v2/);
+assert.match(read('README.md'), /protected App `append_full` publisher/);
+assert.doesNotMatch(read('README.md'), /stable-distribution\.yml/);
+assert.doesNotMatch(read('README.md'), /opl_stable_distribution_receipt\.v2/);
 assert.match(read('README.md'), /no eligible Nightly exists it completes as a no-op/);
 for (const channelConsumer of [
   'README.md',
@@ -64,7 +66,6 @@ for (const channelConsumer of [
 for (const cask of [
   'Casks/one-person-lab.rb',
   'Casks/one-person-lab-nightly.rb',
-  'Casks/one-person-lab-full.rb',
 ]) {
   assert.equal(
     /depends_on formula: "opl"/.test(read(cask)),
@@ -72,8 +73,18 @@ for (const cask of [
     `${cask} Formula dependency must match Formula/opl.rb publication`,
   );
 }
+const fullCask = read('Casks/one-person-lab-full.rb');
+if (/depends_on formula: "opl"/.test(fullCask)) {
+  assert.equal(
+    crypto.createHash('sha256').update(fullCask).digest('hex'),
+    '1bbc1afba6ca7f01c82b064dbf764d91f2f8ab6129bfec4ed65b160e171ca84e',
+    'only the exact legacy Full cask may retain the Formula dependency during migration',
+  );
+}
+assert.match(read('README.md'), /Full consumes the App-owned embedded Base/);
+assert.match(read('README.md'), /does not depend on Formula `opl`/);
 assert.match(
-  read('Casks/one-person-lab-full.rb'),
+  fullCask,
   /skip "Full casks track explicitly published Full cohorts through App release automation"/,
 );
 assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
@@ -82,7 +93,11 @@ for (const workflow of [
   '.github/workflows/sync-from-app-releases.yml',
 ]) {
   assert.doesNotMatch(read(workflow), /--no-signing/);
+  assert.match(read(workflow), /Full casks consume the App-owned embedded Base and must not depend on Formula opl/);
 }
+assert.equal(fs.existsSync(path.join(root, '.github/workflows/stable-distribution.yml')), false);
+assert.equal(fs.existsSync(path.join(root, 'scripts/prepare-stable-distribution.mjs')), false);
+assert.equal(fs.existsSync(path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs')), false);
 
 const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
 const releaseSetGeneration = '26.7.13-r4';
@@ -466,6 +481,28 @@ assert.match(generatedFull, /opl-release-manifest\.json/);
 assert.match(generatedFull, /skip "Full casks track explicitly published Full cohorts through App release automation"/);
 assert.doesNotMatch(generatedFull, /releases\/latest/);
 assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
+
+const fullFormulaBypass = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'full',
+  '--release-tag',
+  'v26.7.12',
+  '--with-opl-formula',
+], {
+  cwd: successTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${successBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.notEqual(fullFormulaBypass.status, 0);
+assert.match(fullFormulaBypass.stderr, /Full casks consume the App-owned embedded Base/);
+assert.doesNotMatch(
+  fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8'),
+  /depends_on formula: "opl"/,
+);
 
 const nightlyVersion = '26.7.12-nightly';
 const nightlyBin = writeMockGh(successTmp, {

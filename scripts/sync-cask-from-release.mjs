@@ -53,6 +53,9 @@ function parseArgs(argv) {
   if (!['stable', 'nightly', 'full'].includes(parsed.channel)) {
     throw new Error('--channel must be stable, nightly, or full.');
   }
+  if (parsed.channel === 'full' && parsed.dependsOnOplFormula) {
+    throw new Error('Full casks consume the App-owned embedded Base and must not depend on Formula opl.');
+  }
   if (parsed.allowMissingNightly && (parsed.channel !== 'nightly' || parsed.releaseTag)) {
     throw new Error('--allow-missing-nightly is valid only for automatic Nightly discovery.');
   }
