@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -74,18 +73,40 @@ for (const cask of [
   );
 }
 const fullCask = read('Casks/one-person-lab-full.rb');
-if (/depends_on formula: "opl"/.test(fullCask)) {
-  assert.equal(
-    crypto.createHash('sha256').update(fullCask).digest('hex'),
-    '1bbc1afba6ca7f01c82b064dbf764d91f2f8ab6129bfec4ed65b160e171ca84e',
-    'only the exact legacy Full cask may retain the Formula dependency during migration',
-  );
-}
+const fullUpdaterVersion = fullCask.match(/^\s*version "([^"]+)"$/m)?.[1];
+const fullDisplayVersion = fullCask.match(/^\s*# display_version: (\S+)$/m)?.[1];
+const fullBoundaryUpdaterVersion = fullCask.match(/^\s*# updater_version: (\S+)$/m)?.[1];
+const fullSha256 = fullCask.match(/^\s*sha256 "([a-f0-9]{64})"$/m)?.[1];
+const fullBoundarySha256 = fullCask.match(/^\s*# checksum: sha256:([a-f0-9]{64})$/m)?.[1];
+assert.ok(fullUpdaterVersion, 'Full cask must expose a Homebrew updater version');
+assert.ok(fullDisplayVersion, 'Full cask must bind an exact display version');
+assert.equal(fullBoundaryUpdaterVersion, fullUpdaterVersion);
+assert.equal(fullBoundarySha256, fullSha256);
+assert.doesNotMatch(
+  fullCask,
+  /depends_on formula: "opl"/,
+  'Full embeds the Base carrier and must never add the opl Formula as a duplicate carrier',
+);
+assert.match(fullCask, /# formula_dependency_required: false/);
+assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
+assert.match(fullCask, /# active_framework_count_target: 1/);
+assert.ok(
+  fullCask.includes(
+    `url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v${fullDisplayVersion}/One-Person-Lab-Full-${fullDisplayVersion}-mac-arm64.dmg"`,
+  ),
+  'Full cask URL must bind the exact display-version cohort',
+);
+assert.ok(
+  fullCask.includes(
+    `# manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v${fullDisplayVersion}/opl-release-manifest.json`,
+  ),
+  'Full cask manifest must bind the same exact display-version cohort',
+);
 assert.match(read('README.md'), /Full consumes the App-owned embedded Base/);
 assert.match(read('README.md'), /does not depend on Formula `opl`/);
 assert.match(
   fullCask,
-  /skip "Full casks track explicitly published Full cohorts through App release automation"/,
+  /skip "The immutable Release Bundle maps display tags to monotonic machine versions"/,
 );
 assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
 for (const workflow of [
@@ -339,23 +360,21 @@ assert.doesNotMatch(
 for (const [cask, channel, packageKind] of [
   ['Casks/one-person-lab.rb', 'stable', 'app_standard'],
   ['Casks/one-person-lab-nightly.rb', 'nightly', 'app_standard'],
-  ['Casks/one-person-lab-full.rb', 'full', 'app_full_first_install'],
+  ['Casks/one-person-lab-full.rb', 'stable', 'app_full_first_install'],
 ]) {
   const content = read(cask);
   assert.match(content, new RegExp(`# channel: ${channel}`));
   assert.match(content, new RegExp(`# package_kind: ${packageKind}`));
-  assert.match(content, /# downstream_mirror_only: true/);
-  assert.match(content, /# release_truth_authority: app_release/);
-  assert.match(content, /# failure_feedback_owner: app_release_operator/);
+  assert.match(content, /# stable_promotion_from_nightly_allowed: false/);
+  assert.match(content, /# publishes_or_pushes_remote: false/);
   assert.match(content, /# homebrew_allowed_software_objects: opl_base,opl_app/);
   assert.match(content, /# opl_packages_lifecycle_owned_by_homebrew: false/);
-  assert.match(content, /# opl_packages_lifecycle_owner: opl_cli/);
-  assert.match(content, /# opl_packages_lifecycle_command: opl packages/);
   assert.match(content, /# package_specific_formula_allowed: false/);
   assert.match(content, /# package_specific_cask_allowed: false/);
   assert.match(content, /# forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
   assert.match(content, /# forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
-  assert.match(content, /# must_not_define_release_currentness: true/);
+  assert.match(content, /# must_not_write_user_codex_state: true/);
+  assert.match(content, /# must_not_define_agent_semantics: true/);
 }
 
 for (const file of [
