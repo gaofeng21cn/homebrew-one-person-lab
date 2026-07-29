@@ -1,8 +1,8 @@
 cask "one-person-lab" do
-  version "26.7.2803"
+  version "26.7.28-r3"
   sha256 "2cdef0d8ccf23e1ada98fac8dbfecc791d43b7daa98aaa86b61905ebf1c4a5f8"
 
-  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.28-r3/One-Person-Lab-26.7.28-r3-mac-arm64.dmg"
+  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
   name "One Person Lab"
   desc "AI-first desktop research and agent orchestration app"
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
