@@ -92,9 +92,9 @@ assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
 assert.match(fullCask, /# active_framework_count_target: 1/);
 assert.ok(
   fullCask.includes(
-    `url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v${fullDisplayVersion}/One-Person-Lab-Full-${fullDisplayVersion}-mac-arm64.dmg"`,
+    'url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-Full-#{version}-mac-arm64.dmg"',
   ),
-  'Full cask URL must bind the exact display-version cohort',
+  'Full cask URL must bind the cask version cohort',
 );
 assert.ok(
   fullCask.includes(

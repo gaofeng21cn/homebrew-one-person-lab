@@ -2,7 +2,7 @@ cask "one-person-lab-full" do
   version "26.7.7"
   sha256 "4e0f403c48fb0397099758c30423a4ee5908851e0a9e885537cdbb71603f96ed"
 
-  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.7/One-Person-Lab-Full-26.7.7-mac-arm64.dmg"
+  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-Full-#{version}-mac-arm64.dmg"
   name "One Person Lab Full"
   desc "Complete first-install package for One Person Lab"
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
