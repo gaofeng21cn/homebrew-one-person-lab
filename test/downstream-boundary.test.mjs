@@ -369,6 +369,8 @@ for (const [cask, channel, packageKind] of [
   assert.match(content, /# publishes_or_pushes_remote: false/);
   assert.match(content, /# homebrew_allowed_software_objects: opl_base,opl_app/);
   assert.match(content, /# opl_packages_lifecycle_owned_by_homebrew: false/);
+  assert.match(content, /# opl_packages_lifecycle_owner: opl_cli/);
+  assert.match(content, /# opl_packages_lifecycle_command: opl packages/);
   assert.match(content, /# package_specific_formula_allowed: false/);
   assert.match(content, /# package_specific_cask_allowed: false/);
   assert.match(content, /# forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
