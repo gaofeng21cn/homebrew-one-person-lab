@@ -148,6 +148,23 @@ function digestOf(asset) {
   return match.groups.hash.toLowerCase();
 }
 
+function requireStandardTrustAssets(assets, channel) {
+  if (channel === 'nightly') return;
+
+  const gatekeeper = assets.find((candidate) => candidate?.name === 'standard-gatekeeper-launch-policy.json');
+  const notarization = assets.find((candidate) => candidate?.name === 'standard-apple-notarization-receipt.json');
+  if (gatekeeper && notarization) return;
+  if (assets.some((candidate) => candidate?.name === 'standard-local-authorization-policy.json')) return;
+
+  const missing = [
+    gatekeeper ? null : 'standard-gatekeeper-launch-policy.json',
+    notarization ? null : 'standard-apple-notarization-receipt.json',
+  ].filter(Boolean);
+  throw new Error(
+    `Missing release assets: ${missing.join(', ')}; legacy fallback standard-local-authorization-policy.json is also absent.`,
+  );
+}
+
 function validateRenderedCask({ channel, content }) {
   const isFull = channel === 'full';
   if (isFull) {
@@ -193,7 +210,7 @@ function boundaryBlock({ channel, version, manifestUrl, checksum }) {
     `  # bundled_full_runtime_payload_allowed: ${isFull ? 'true' : 'false'}`,
     '  # homebrew_allowed_software_objects: opl_base,opl_app',
     '  # opl_packages_lifecycle_owned_by_homebrew: false',
-    '  # opl_packages_lifecycle_owner: opl_cli',
+    '  # opl_packages_lifecycle_owner: one-person-lab',
     '  # opl_packages_lifecycle_command: opl packages',
     '  # package_specific_formula_allowed: false',
     '  # package_specific_cask_allowed: false',
@@ -312,7 +329,7 @@ function main() {
     ? assetByName(assets, dmgName)
     : standardDmgAsset(assets, { channel: options.channel, version });
   const manifestAsset = assetByName(assets, options.channel === 'full' ? 'opl-release-manifest.json' : 'latest-arm64-mac.yml');
-  assetByName(assets, 'standard-local-authorization-policy.json');
+  requireStandardTrustAssets(assets, options.channel);
   const checksum = digestOf(dmgAsset);
   const manifestUrl = `https://github.com/${appRepo}/releases/download/${tag}/${manifestAsset.name}`;
   const caskPath = options.channel === 'nightly'

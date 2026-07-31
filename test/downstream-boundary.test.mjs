@@ -369,7 +369,7 @@ for (const [cask, channel, packageKind] of [
   assert.match(content, /# publishes_or_pushes_remote: false/);
   assert.match(content, /# homebrew_allowed_software_objects: opl_base,opl_app/);
   assert.match(content, /# opl_packages_lifecycle_owned_by_homebrew: false/);
-  assert.match(content, /# opl_packages_lifecycle_owner: opl_cli/);
+  assert.match(content, /# opl_packages_lifecycle_owner: one-person-lab/);
   assert.match(content, /# opl_packages_lifecycle_command: opl packages/);
   assert.match(content, /# package_specific_formula_allowed: false/);
   assert.match(content, /# package_specific_cask_allowed: false/);
@@ -428,7 +428,8 @@ const successBin = writeMockGh(successTmp, { assets: [
   { name: 'One-Person-Lab-Full-26.7.12-mac-arm64.dmg', digest: 'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' },
   { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
   { name: 'opl-release-manifest.json', digest: 'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
-  { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+  { name: 'standard-gatekeeper-launch-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+  { name: 'standard-apple-notarization-receipt.json', digest: 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' },
 ] });
 
 const success = spawnSync(process.execPath, [
@@ -451,7 +452,7 @@ assert.match(generated, /# downstream_mirror_only: true/);
 assert.match(generated, /# release_truth_authority: app_release/);
 assert.match(generated, /# failure_feedback_owner: app_release_operator/);
 assert.match(generated, /# opl_packages_lifecycle_owned_by_homebrew: false/);
-assert.match(generated, /# opl_packages_lifecycle_owner: opl_cli/);
+assert.match(generated, /# opl_packages_lifecycle_owner: one-person-lab/);
 assert.match(generated, /# opl_packages_lifecycle_command: opl packages/);
 assert.match(generated, /# package_specific_formula_allowed: false/);
 assert.match(generated, /# package_specific_cask_allowed: false/);
@@ -503,6 +504,50 @@ assert.match(generatedFull, /skip "Full casks track explicitly published Full co
 assert.doesNotMatch(generatedFull, /releases\/latest/);
 assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
 
+const legacyTrustBin = writeMockGh(successTmp, { assets: [
+  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+  { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+] });
+const legacyTrustSuccess = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'stable',
+  '--release-tag',
+  'v26.7.12',
+], {
+  cwd: successTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${legacyTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.equal(legacyTrustSuccess.status, 0, legacyTrustSuccess.stderr);
+
+const missingTrustBin = writeMockGh(successTmp, { assets: [
+  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+] });
+const missingTrust = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'stable',
+  '--release-tag',
+  'v26.7.12',
+], {
+  cwd: successTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${missingTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.notEqual(missingTrust.status, 0);
+assert.match(missingTrust.stderr, /standard-gatekeeper-launch-policy\.json/);
+assert.match(missingTrust.stderr, /standard-apple-notarization-receipt\.json/);
+assert.match(missingTrust.stderr, /legacy fallback standard-local-authorization-policy\.json is also absent/);
+
 const fullFormulaBypass = spawnSync(process.execPath, [
   path.join(root, 'scripts/sync-cask-from-release.mjs'),
   '--channel',
@@ -532,7 +577,6 @@ const nightlyBin = writeMockGh(successTmp, {
   assets: [
     { name: `One-Person-Lab-${nightlyVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
     { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-    { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
   ],
 });
 const nightlySuccess = spawnSync(process.execPath, [
@@ -564,7 +608,6 @@ const migratedNightlyBin = writeMockGh(successTmp, {
   assets: [
     { name: `One-Person-Lab-${migratedNightlyAssetVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
     { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-    { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
   ],
 });
 const migratedNightly = spawnSync(process.execPath, [

@@ -34,7 +34,7 @@ cask "one-person-lab-full" do
   # active_framework_count_target: 1
   # homebrew_allowed_software_objects: opl_base,opl_app
   # opl_packages_lifecycle_owned_by_homebrew: false
-  # opl_packages_lifecycle_owner: opl_cli
+  # opl_packages_lifecycle_owner: one-person-lab
   # opl_packages_lifecycle_command: opl packages
   # package_specific_formula_allowed: false
   # package_specific_cask_allowed: false
