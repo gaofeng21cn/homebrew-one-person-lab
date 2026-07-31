@@ -377,6 +377,13 @@ for (const [cask, channel, packageKind] of [
   assert.match(content, /# forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
   assert.match(content, /# must_not_write_user_codex_state: true/);
   assert.match(content, /# must_not_define_agent_semantics: true/);
+  const displayVersion = content.match(/^\s*# display_version: (\S+)$/m)?.[1];
+  const updaterVersion = content.match(/^\s*# updater_version: (\S+)$/m)?.[1];
+  if (displayVersion && updaterVersion && displayVersion !== updaterVersion) {
+    assert.match(content, new RegExp(`^\\s*version "${updaterVersion},${displayVersion}"$`, 'm'));
+    assert.match(content, /releases\/download\/v#\{version\.csv\.second\}\//);
+    assert.match(content, /One-Person-Lab-#\{version\.csv\.second\}-mac-arm64\.dmg/);
+  }
 }
 
 for (const file of [
