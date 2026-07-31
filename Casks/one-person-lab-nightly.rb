@@ -1,6 +1,6 @@
 cask "one-person-lab-nightly" do
-  version "26.7.3190-nightly.0,26.7.31-nightly"
-  sha256 "6bcfa3fecab16e750d4bb92d2c35541f55f6c2c3c225ec9f3d3a5ca56bf473d9"
+  version "26.8.191-nightly.1,26.8.1-nightly.r1"
+  sha256 "3f17fbce930d6d9827a9851dd07494f93b9f1445ceb317d7a1f8493a3f5e2ccd"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version.csv.second}/One-Person-Lab-#{version.csv.second}-mac-arm64.dmg"
   name "One Person Lab"
@@ -19,11 +19,11 @@ cask "one-person-lab-nightly" do
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: nightly
   # package_kind: app_standard
-  # version: 26.7.31-nightly
-  # display_version: 26.7.31-nightly
-  # updater_version: 26.7.3190-nightly.0
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.31-nightly/latest-arm64-mac.yml
-  # checksum: sha256:6bcfa3fecab16e750d4bb92d2c35541f55f6c2c3c225ec9f3d3a5ca56bf473d9
+  # version: 26.8.1-nightly.r1
+  # display_version: 26.8.1-nightly.r1
+  # updater_version: 26.8.191-nightly.1
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.8.1-nightly.r1/latest-arm64-mac.yml
+  # checksum: sha256:3f17fbce930d6d9827a9851dd07494f93b9f1445ceb317d7a1f8493a3f5e2ccd
   # full_first_install_allowed: false
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
