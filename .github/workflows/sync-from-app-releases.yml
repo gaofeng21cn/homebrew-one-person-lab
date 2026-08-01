@@ -107,11 +107,15 @@ jobs:
             echo "::error::This tap may publish only Formula/opl.rb and no Package-specific Formulae."
             exit 1
           fi
+          formula_casks=(Casks/one-person-lab.rb)
+          if [ -f Casks/one-person-lab-nightly.rb ]; then
+            formula_casks+=(Casks/one-person-lab-nightly.rb)
+          fi
           if [ -f Formula/opl.rb ]; then
-            for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; do
+            for cask in "${formula_casks[@]}"; do
               grep -q 'depends_on formula: "opl"' "$cask" || { echo "::error::$cask must depend on the published opl Formula."; exit 1; }
             done
-          elif grep -q 'depends_on formula: "opl"' Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
+          elif grep -q 'depends_on formula: "opl"' "${formula_casks[@]}"; then
             echo "::error::Standard and Nightly casks must not depend on opl before Formula/opl.rb is published."
             exit 1
           fi
@@ -128,13 +132,17 @@ jobs:
             echo "::error::This tap may publish only the stable, nightly, and Full App casks."
             exit 1
           fi
-          for cask in Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb Casks/one-person-lab-full.rb; do
+          published_casks=(Casks/one-person-lab.rb Casks/one-person-lab-full.rb)
+          if [ -f Casks/one-person-lab-nightly.rb ]; then
+            published_casks+=(Casks/one-person-lab-nightly.rb)
+          fi
+          for cask in "${published_casks[@]}"; do
             grep -q '# homebrew_allowed_software_objects: opl_base,opl_app' "$cask" || { echo "::error::$cask must restrict Homebrew to Base and App."; exit 1; }
             grep -q '# opl_packages_lifecycle_command: opl packages' "$cask" || { echo "::error::$cask must route Package lifecycle through opl packages."; exit 1; }
             grep -q '# package_specific_formula_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Formulae."; exit 1; }
             grep -q '# package_specific_cask_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Casks."; exit 1; }
           done
-          if grep -R "One-Person-Lab-Full" Casks/one-person-lab.rb Casks/one-person-lab-nightly.rb; then
+          if grep -R "One-Person-Lab-Full" "${formula_casks[@]}"; then
             echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
@@ -159,9 +167,15 @@ jobs:
             brew audit --strict --online "$GITHUB_REPOSITORY/opl"
           fi
           trap report_app_release_failure ERR
-          brew style --cask "$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-nightly" "$GITHUB_REPOSITORY/one-person-lab-full"
+          published_cask_tokens=("$GITHUB_REPOSITORY/one-person-lab" "$GITHUB_REPOSITORY/one-person-lab-full")
+          if [ -f Casks/one-person-lab-nightly.rb ]; then
+            published_cask_tokens+=("$GITHUB_REPOSITORY/one-person-lab-nightly")
+          fi
+          brew style --cask "${published_cask_tokens[@]}"
           brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab"
-          brew audit --cask "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          if [ -f Casks/one-person-lab-nightly.rb ]; then
+            brew audit --cask "$GITHUB_REPOSITORY/one-person-lab-nightly"
+          fi
           brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab-full"
 
       - name: Commit tap update

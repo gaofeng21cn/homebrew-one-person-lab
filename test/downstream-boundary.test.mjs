@@ -29,9 +29,10 @@ assert.deepEqual(
 );
 assert.deepEqual(
   fs.readdirSync(path.join(root, 'Casks')).filter((name) => name.endsWith('.rb')).sort(),
-  ['one-person-lab-full.rb', 'one-person-lab-nightly.rb', 'one-person-lab.rb'],
-  'the tap may publish only the three App casks',
+  ['one-person-lab-full.rb', 'one-person-lab.rb'],
+  'the tap must not retain a Nightly cask after its immutable prerelease is retired',
 );
+assert.equal(fs.existsSync(path.join(root, 'Casks/one-person-lab-nightly.rb')), false);
 assert.match(read('README.md'), /sole Formula identity is `opl`/);
 assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
 assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
@@ -41,7 +42,7 @@ assert.match(read('README.md'), /does not install the desktop App or any OPL Pac
 assert.match(read('README.md'), /does not create or\nreconcile user workspace state/);
 assert.match(read('README.md'), /opl install --headless --skip-packages/);
 assert.match(read('README.md'), /managed after base\ninitialization by `opl packages`/);
-assert.match(read('README.md'), /permits only Formula `opl` plus the three App Casks/);
+assert.match(read('README.md'), /optional Nightly App Cask only while its immutable prerelease exists/);
 assert.match(read('README.md'), /Homebrew-owned Base update stays on the Homebrew channel/);
 assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
 assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
@@ -52,7 +53,7 @@ assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
 assert.match(read('README.md'), /protected App `append_full` publisher/);
 assert.doesNotMatch(read('README.md'), /stable-distribution\.yml/);
 assert.doesNotMatch(read('README.md'), /opl_stable_distribution_receipt\.v2/);
-assert.match(read('README.md'), /no eligible Nightly exists it completes as a no-op/);
+assert.match(read('README.md'), /no eligible Nightly exists\s+it completes as a no-op/);
 for (const channelConsumer of [
   'README.md',
   'scripts/sync-formula-from-framework-manifest.mjs',
@@ -62,10 +63,7 @@ for (const channelConsumer of [
   assert.doesNotMatch(content, /one-person-lab-manifest:latest(?!-stable)/);
 }
 
-for (const cask of [
-  'Casks/one-person-lab.rb',
-  'Casks/one-person-lab-nightly.rb',
-]) {
+for (const cask of ['Casks/one-person-lab.rb']) {
   assert.equal(
     /depends_on formula: "opl"/.test(read(cask)),
     formulaPublished,
@@ -102,7 +100,7 @@ assert.ok(
   ),
   'Full cask manifest must bind the same exact display-version cohort',
 );
-assert.match(read('README.md'), /Full consumes the App-owned embedded Base/);
+assert.match(read('README.md'), /Full consumes the App-owned\s+embedded Base/);
 assert.match(read('README.md'), /does not depend on Formula `opl`/);
 assert.match(
   fullCask,
@@ -359,7 +357,6 @@ assert.doesNotMatch(
 
 for (const [cask, channel, packageKind] of [
   ['Casks/one-person-lab.rb', 'stable', 'app_standard'],
-  ['Casks/one-person-lab-nightly.rb', 'nightly', 'app_standard'],
   ['Casks/one-person-lab-full.rb', 'stable', 'app_full_first_install'],
 ]) {
   const content = read(cask);
@@ -391,7 +388,6 @@ for (const file of [
   'scripts/sync-cask-from-release.mjs',
   'scripts/sync-formula-from-framework-manifest.mjs',
   'Casks/one-person-lab.rb',
-  'Casks/one-person-lab-nightly.rb',
   'Casks/one-person-lab-full.rb',
   '.github/workflows/sync-from-app-releases.yml',
   '.github/workflows/tap-check.yml',

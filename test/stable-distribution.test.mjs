@@ -31,7 +31,9 @@ assert.match(nightlyWorkflow, /formal Full writes belong to the App protected ap
 assert.match(nightlyWorkflow, /\[ "\$channel" != "full" \]/);
 
 for (const workflow of [tapCheck, nightlyWorkflow]) {
-  assert.match(workflow, /Casks\/one-person-lab\.rb Casks\/one-person-lab-nightly\.rb/);
+  assert.match(workflow, /formula_casks=\(Casks\/one-person-lab\.rb\)/);
+  assert.match(workflow, /if \[ -f Casks\/one-person-lab-nightly\.rb \]; then/);
+  assert.match(workflow, /formula_casks\+=\(Casks\/one-person-lab-nightly\.rb\)/);
   assert.match(workflow, /Full casks consume the App-owned embedded Base and must not depend on Formula opl/);
   assert.match(workflow, /1bbc1afba6ca7f01c82b064dbf764d91f2f8ab6129bfec4ed65b160e171ca84e/);
 }
