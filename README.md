@@ -4,9 +4,10 @@ Homebrew tap for OPL Base and the One Person Lab App.
 
 ## Public Role Boundary
 
-This repository is a downstream Homebrew distribution tap. The three casks
-mirror App metadata and download targets derived from published
-`gaofeng21cn/one-person-lab-app` releases. The sole Formula identity is `opl`;
+This repository is a downstream Homebrew distribution tap. The Standard and
+Full casks mirror App metadata and download targets derived from published
+`gaofeng21cn/one-person-lab-app` releases. A Nightly cask exists only while an
+eligible immutable Nightly prerelease is published. The sole Formula identity is `opl`;
 it is materialized only by the formal Stable distribution workflow.
 
 The tap does not own Framework or App release truth. Stable Formula sync is
@@ -15,9 +16,9 @@ fail-closed: it reads one immutable Release Set generation and verifies that
 It then generates `Formula/opl.rb` only from the owner-approved
 `framework_core.homebrew_formula` projection, computes the transport checksum
 from downloaded bytes, and adds the same-tap Formula dependency to the Standard
-cask in the same atomic distribution commit and receipt. Nightly also consumes
-that Formula when present. Full consumes the App-owned embedded Base and must
-not add a Formula dependency.
+cask in the same atomic distribution commit and receipt. A published Nightly
+cask also consumes that Formula when present. Full consumes the App-owned
+embedded Base and must not add a Formula dependency.
 
 ## Aligned Installation Semantics
 
@@ -28,13 +29,13 @@ CLI/runtime and all Framework production dependencies, including Temporal.
 Formula does not install the desktop App or any OPL Package, does not create or
 reconcile user workspace state, and does not run Package lifecycle operations.
 
-The Standard and Nightly casks depend on that same Formula. Installing either
-cask therefore installs two independently maintained products: the OPL base
-carrier and the OPL App GUI. The Full cask instead installs the Full DMG, whose
-embedded Base is the sole first-install carrier; Homebrew must not install a
-second Formula carrier for Full. The first App launch invokes the Framework
-reconcile contract; a Formula-only CLI installation performs the same
-initialization explicitly with:
+The Standard cask, and the Nightly cask when one is published, depend on that
+same Formula. Installing either therefore installs two independently maintained
+products: the OPL base carrier and the OPL App GUI. The Full cask instead
+installs the Full DMG, whose embedded Base is the sole first-install carrier;
+Homebrew must not install a second Formula carrier for Full. The first App
+launch invokes the Framework reconcile contract; a Formula-only CLI
+installation performs the same initialization explicitly with:
 
 ```bash
 opl install --headless --skip-packages
@@ -61,7 +62,8 @@ brew install --cask one-person-lab
 open -a "One Person Lab"
 ```
 
-Nightly builds are opt-in:
+Nightly builds are opt-in. The following token is available only while the App
+repository exposes an eligible immutable Nightly prerelease:
 
 ```bash
 brew install --cask one-person-lab-nightly
@@ -90,7 +92,8 @@ operation: the protected App `append_full` publisher generates and writes the
 Full Cask from the qualified Full DMG and embedded Base bytes. This tap does not
 own a second Full publisher; it validates, indexes, and reads back that App-owned
 projection.
-The scheduled sync workflow writes Nightly only; when no eligible Nightly exists it completes as a no-op.
+The scheduled sync workflow writes Nightly only; when no eligible Nightly exists
+it completes as a no-op and the tap does not expose a stale Nightly cask.
 Its Stable/Full modes are read-only diagnostics and route
 Standard operators to the formal Standard workflow and Full operators to the App
 protected `append_full` publisher; they cannot publish casks or Formulae.
@@ -132,6 +135,7 @@ the larger Full DMG and is written by the App protected release path. It stays
 outside standard updater metadata and does not depend on Formula `opl`. Package
 material carried inside that App-owned asset remains governed by OPL Package
 lifecycle receipts after installation; Homebrew does not version or mutate it.
-This tap permits only Formula `opl` plus the three App Casks. It never publishes
-Package-specific Formulae or Casks for MAS, MAG, RCA, OMA, BookForge,
-MAS ScholarSkills, or OPL Flow.
+This tap permits only Formula `opl` plus the Standard and Full App Casks, with
+an optional Nightly App Cask only while its immutable prerelease exists. It
+never publishes Package-specific Formulae or Casks for MAS, MAG, RCA, OMA,
+BookForge, MAS ScholarSkills, or OPL Flow.
