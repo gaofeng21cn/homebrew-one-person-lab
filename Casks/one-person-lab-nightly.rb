@@ -1,14 +1,14 @@
 cask "one-person-lab-nightly" do
-  version "26.8.2-nightly"
-  sha256 "a9e867c9ed6b106a0f71186725d43248fa536eb6f2f151ec911b8f6bbf323dc9"
+  version "26.8.390-nightly.0,26.8.3-nightly"
+  sha256 "0503559edc1fd16622dd106ab1ad7f376b920b5cbc248f20e9b316c5af7fca8e"
 
-  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
+  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version.csv.second}/One-Person-Lab-#{version.csv.second}-mac-arm64.dmg"
   name "One Person Lab"
   desc "AI-first desktop research and agent orchestration app"
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
 
   livecheck do
-    skip "Nightly casks track prerelease cohorts through tap automation"
+    skip "Nightly casks track prerelease cohorts through App release automation"
   end
 
   conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
@@ -19,18 +19,20 @@ cask "one-person-lab-nightly" do
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: nightly
   # package_kind: app_standard
-  # version: 26.8.2-nightly
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.8.2-nightly/latest-arm64-mac.yml
-  # checksum: sha256:a9e867c9ed6b106a0f71186725d43248fa536eb6f2f151ec911b8f6bbf323dc9
-  # downstream_mirror_only: true
-  # release_truth_authority: app_release
-  # failure_feedback_owner: app_release_operator
+  # version: 26.8.3-nightly
+  # display_version: 26.8.3-nightly
+  # updater_version: 26.8.390-nightly.0
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.8.3-nightly/latest-arm64-mac.yml
+  # checksum: sha256:0503559edc1fd16622dd106ab1ad7f376b920b5cbc248f20e9b316c5af7fca8e
   # full_first_install_allowed: false
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
   # cohort: standard_desktop_homebrew_distribution
   # standard_updater_visible: true
   # bundled_full_runtime_payload_allowed: false
+  # formula_dependency_required: true
+  # framework_carrier: homebrew_formula_opl
+  # active_framework_count_target: 1
   # homebrew_allowed_software_objects: opl_base,opl_app
   # opl_packages_lifecycle_owned_by_homebrew: false
   # opl_packages_lifecycle_owner: one-person-lab
@@ -39,7 +41,6 @@ cask "one-person-lab-nightly" do
   # package_specific_cask_allowed: false
   # forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
   # forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
-  # must_not_define_release_currentness: true
   # must_not_write_user_codex_state: true
   # must_not_define_agent_semantics: true
   # OPL_HOMEBREW_BOUNDARY_END
