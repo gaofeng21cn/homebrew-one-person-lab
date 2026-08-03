@@ -27,12 +27,14 @@ assert.deepEqual(
   [],
   'the tap may publish only Formula/opl.rb',
 );
+const caskFiles = fs.readdirSync(path.join(root, 'Casks'))
+  .filter((name) => name.endsWith('.rb'))
+  .sort();
 assert.deepEqual(
-  fs.readdirSync(path.join(root, 'Casks')).filter((name) => name.endsWith('.rb')).sort(),
+  caskFiles.filter((name) => name !== 'one-person-lab-nightly.rb'),
   ['one-person-lab-full.rb', 'one-person-lab.rb'],
-  'the tap must not retain a Nightly cask after its immutable prerelease is retired',
+  'the tap may publish only the Stable, Full, and optional Nightly casks',
 );
-assert.equal(fs.existsSync(path.join(root, 'Casks/one-person-lab-nightly.rb')), false);
 assert.match(read('README.md'), /sole Formula identity is `opl`/);
 assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
 assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
