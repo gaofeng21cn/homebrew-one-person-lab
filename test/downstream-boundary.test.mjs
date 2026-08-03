@@ -73,15 +73,32 @@ for (const cask of ['Casks/one-person-lab.rb']) {
   );
 }
 const fullCask = read('Casks/one-person-lab-full.rb');
-const fullUpdaterVersion = fullCask.match(/^\s*version "([^"]+)"$/m)?.[1];
-const fullDisplayVersion = fullCask.match(/^\s*# display_version: (\S+)$/m)?.[1];
+const fullVersion = fullCask.match(/^\s*version "([^"]+)"$/m)?.[1];
+const fullVersionComponents = fullVersion?.split(',') ?? [];
+const [fullUpdaterVersion, fullDisplayVersion] = fullVersionComponents;
+const fullBoundaryVersion = fullCask.match(/^\s*# version: (\S+)$/m)?.[1];
+const fullBoundaryDisplayVersion = fullCask.match(/^\s*# display_version: (\S+)$/m)?.[1];
 const fullBoundaryUpdaterVersion = fullCask.match(/^\s*# updater_version: (\S+)$/m)?.[1];
 const fullSha256 = fullCask.match(/^\s*sha256 "([a-f0-9]{64})"$/m)?.[1];
 const fullBoundarySha256 = fullCask.match(/^\s*# checksum: sha256:([a-f0-9]{64})$/m)?.[1];
+const fullUrlMatch = fullCask.match(
+  /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\.csv\.second\}-full-([a-f0-9]{12})\/One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg"$/m,
+);
+const fullManifestMatch = fullCask.match(
+  /^\s*# manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v(\S+)-full-([a-f0-9]{12})\/opl-release-manifest\.json$/m,
+);
+assert.ok(fullVersion, 'Full cask must expose updater and display versions');
+assert.equal(fullVersionComponents.length, 2, 'Full cask version must use updater,display CSV semantics');
 assert.ok(fullUpdaterVersion, 'Full cask must expose a Homebrew updater version');
 assert.ok(fullDisplayVersion, 'Full cask must bind an exact display version');
+assert.equal(fullBoundaryVersion, fullDisplayVersion);
+assert.equal(fullBoundaryDisplayVersion, fullDisplayVersion);
 assert.equal(fullBoundaryUpdaterVersion, fullUpdaterVersion);
 assert.equal(fullBoundarySha256, fullSha256);
+assert.ok(fullUrlMatch, 'Full cask URL must bind the display version and one digest-derived adjunct tag');
+assert.ok(fullManifestMatch, 'Full cask manifest must bind an exact display-version adjunct cohort');
+assert.equal(fullManifestMatch[1], fullDisplayVersion);
+assert.equal(fullManifestMatch[2], fullUrlMatch[1]);
 assert.doesNotMatch(
   fullCask,
   /depends_on formula: "opl"/,
@@ -90,18 +107,6 @@ assert.doesNotMatch(
 assert.match(fullCask, /# formula_dependency_required: false/);
 assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
 assert.match(fullCask, /# active_framework_count_target: 1/);
-assert.ok(
-  fullCask.includes(
-    'url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-Full-#{version}-mac-arm64.dmg"',
-  ),
-  'Full cask URL must bind the cask version cohort',
-);
-assert.ok(
-  fullCask.includes(
-    `# manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v${fullDisplayVersion}/opl-release-manifest.json`,
-  ),
-  'Full cask manifest must bind the same exact display-version cohort',
-);
 assert.match(read('README.md'), /Full consumes the App-owned\s+embedded Base/);
 assert.match(read('README.md'), /does not depend on Formula `opl`/);
 assert.match(
@@ -380,8 +385,19 @@ for (const [cask, channel, packageKind] of [
   const updaterVersion = content.match(/^\s*# updater_version: (\S+)$/m)?.[1];
   if (displayVersion && updaterVersion && displayVersion !== updaterVersion) {
     assert.match(content, new RegExp(`^\\s*version "${updaterVersion},${displayVersion}"$`, 'm'));
-    assert.match(content, /releases\/download\/v#\{version\.csv\.second\}\//);
-    assert.match(content, /One-Person-Lab-#\{version\.csv\.second\}-mac-arm64\.dmg/);
+    const isFull = cask.endsWith('one-person-lab-full.rb');
+    assert.match(
+      content,
+      isFull
+        ? /releases\/download\/v#\{version\.csv\.second\}-full-[a-f0-9]{12}\//
+        : /releases\/download\/v#\{version\.csv\.second\}\//,
+    );
+    assert.match(
+      content,
+      isFull
+        ? /One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg/
+        : /One-Person-Lab-#\{version\.csv\.second\}-mac-arm64\.dmg/,
+    );
   }
 }
 
