@@ -82,10 +82,10 @@ const fullBoundaryUpdaterVersion = fullCask.match(/^\s*# updater_version: (\S+)$
 const fullSha256 = fullCask.match(/^\s*sha256 "([a-f0-9]{64})"$/m)?.[1];
 const fullBoundarySha256 = fullCask.match(/^\s*# checksum: sha256:([a-f0-9]{64})$/m)?.[1];
 const fullUrlMatch = fullCask.match(
-  /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\.csv\.second\}-full-([a-f0-9]{12})\/One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg"$/m,
+  /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\.csv\.second\}\/One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg"$/m,
 );
 const fullManifestMatch = fullCask.match(
-  /^\s*# manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v(\S+)-full-([a-f0-9]{12})\/opl-release-manifest\.json$/m,
+  /^\s*# manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v(\S+)\/opl-release-manifest\.json$/m,
 );
 assert.ok(fullVersion, 'Full cask must expose updater and display versions');
 assert.equal(fullVersionComponents.length, 2, 'Full cask version must use updater,display CSV semantics');
@@ -95,10 +95,10 @@ assert.equal(fullBoundaryVersion, fullDisplayVersion);
 assert.equal(fullBoundaryDisplayVersion, fullDisplayVersion);
 assert.equal(fullBoundaryUpdaterVersion, fullUpdaterVersion);
 assert.equal(fullBoundarySha256, fullSha256);
-assert.ok(fullUrlMatch, 'Full cask URL must bind the display version and one digest-derived adjunct tag');
-assert.ok(fullManifestMatch, 'Full cask manifest must bind an exact display-version adjunct cohort');
+assert.ok(fullUrlMatch, 'Full cask URL must bind the same Standard release tag as the display version');
+assert.ok(fullManifestMatch, 'Full cask manifest must bind the same Standard release tag');
 assert.equal(fullManifestMatch[1], fullDisplayVersion);
-assert.equal(fullManifestMatch[2], fullUrlMatch[1]);
+assert.doesNotMatch(fullCask, /releases\/download\/v[^/]+-full-[a-f0-9]{12}\//);
 assert.doesNotMatch(
   fullCask,
   /depends_on formula: "opl"/,
@@ -389,7 +389,7 @@ for (const [cask, channel, packageKind] of [
     assert.match(
       content,
       isFull
-        ? /releases\/download\/v#\{version\.csv\.second\}-full-[a-f0-9]{12}\//
+        ? /releases\/download\/v#\{version\.csv\.second\}\//
         : /releases\/download\/v#\{version\.csv\.second\}\//,
     );
     assert.match(
