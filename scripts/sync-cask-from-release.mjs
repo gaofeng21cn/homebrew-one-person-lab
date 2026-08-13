@@ -151,6 +151,8 @@ function digestOf(asset) {
 function requireStandardTrustAssets(assets, channel) {
   if (channel === 'nightly') return;
 
+  if (assets.some((candidate) => candidate?.name === 'opl-release-attestation.json')) return;
+
   const gatekeeper = assets.find((candidate) => candidate?.name === 'standard-gatekeeper-launch-policy.json');
   const notarization = assets.find((candidate) => candidate?.name === 'standard-apple-notarization-receipt.json');
   if (gatekeeper && notarization) return;
@@ -161,7 +163,7 @@ function requireStandardTrustAssets(assets, channel) {
     notarization ? null : 'standard-apple-notarization-receipt.json',
   ].filter(Boolean);
   throw new Error(
-    `Missing release assets: ${missing.join(', ')}; legacy fallback standard-local-authorization-policy.json is also absent.`,
+    `Missing release asset: opl-release-attestation.json; split trust assets ${missing.join(', ')} and legacy fallback standard-local-authorization-policy.json are also absent.`,
   );
 }
 

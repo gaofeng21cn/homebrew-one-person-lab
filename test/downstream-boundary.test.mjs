@@ -525,6 +525,27 @@ assert.match(generatedFull, /skip "Full casks track explicitly published Full co
 assert.doesNotMatch(generatedFull, /releases\/latest/);
 assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
 
+const unifiedTrustBin = writeMockGh(successTmp, { assets: [
+  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+  { name: 'opl-release-attestation.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+] });
+const unifiedTrustSuccess = spawnSync(process.execPath, [
+  path.join(root, 'scripts/sync-cask-from-release.mjs'),
+  '--channel',
+  'stable',
+  '--release-tag',
+  'v26.7.12',
+], {
+  cwd: successTmp,
+  encoding: 'utf8',
+  env: {
+    ...process.env,
+    PATH: `${unifiedTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
+  },
+});
+assert.equal(unifiedTrustSuccess.status, 0, unifiedTrustSuccess.stderr);
+
 const legacyTrustBin = writeMockGh(successTmp, { assets: [
   { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
   { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
@@ -565,9 +586,10 @@ const missingTrust = spawnSync(process.execPath, [
   },
 });
 assert.notEqual(missingTrust.status, 0);
+assert.match(missingTrust.stderr, /opl-release-attestation\.json/);
 assert.match(missingTrust.stderr, /standard-gatekeeper-launch-policy\.json/);
 assert.match(missingTrust.stderr, /standard-apple-notarization-receipt\.json/);
-assert.match(missingTrust.stderr, /legacy fallback standard-local-authorization-policy\.json is also absent/);
+assert.match(missingTrust.stderr, /legacy fallback standard-local-authorization-policy\.json are also absent/);
 
 const fullFormulaBypass = spawnSync(process.execPath, [
   path.join(root, 'scripts/sync-cask-from-release.mjs'),
