@@ -260,7 +260,7 @@ function renderCask({ channel, version, checksum, manifestUrl, dmgAssetName, dep
         ]),
     `  conflicts_with cask: [${(caskConflictMap[token] ?? []).map((conflict) => `"${conflict}"`).join(', ')}]`,
     ...(dependsOnOplFormula ? ['  depends_on formula: "opl"'] : []),
-    '  depends_on macos: :big_sur',
+    '  depends_on macos: :monterey',
     '  depends_on arch: :arm64',
     '',
     boundaryBlock({ channel, version, manifestUrl, checksum }),

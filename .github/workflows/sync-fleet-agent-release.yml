@@ -1,0 +1,78 @@
+name: Sync Fleet Agent Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Optional exact Fleet Agent release tag, for example v0.2.40
+        required: false
+        type: string
+  schedule:
+    - cron: '41 23 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: opl-homebrew-tap-write
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Sync Cask from Fleet Agent release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [ -n "$RELEASE_TAG" ]; then
+            args+=(--release-tag "$RELEASE_TAG")
+          fi
+          node scripts/sync-fleet-agent-cask.mjs "${args[@]}"
+
+      - name: Validate Fleet Agent projection
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node test/fleet-agent-cask.test.mjs
+          node test/downstream-boundary.test.mjs
+          brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          if brew help trust >/dev/null 2>&1; then
+            brew trust "$GITHUB_REPOSITORY"
+          fi
+          brew style --cask "$GITHUB_REPOSITORY/opl-fleet-agent"
+          brew audit --cask --online "$GITHUB_REPOSITORY/opl-fleet-agent"
+
+      - name: Commit Fleet Agent Cask
+        id: commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Casks/opl-fleet-agent.rb; then
+            echo "No Fleet Agent Cask update."
+            exit 0
+          fi
+          git diff --quiet -- . ':(exclude)Casks/opl-fleet-agent.rb' || {
+            echo "::error::Fleet Agent sync may modify only Casks/opl-fleet-agent.rb."
+            exit 1
+          }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/opl-fleet-agent.rb
+          git commit -m "Sync OPL Fleet Agent Cask from release"
+          git push origin HEAD:main
+          echo "tap_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Verify remote main
+        if: ${{ steps.commit.outputs.tap_commit != '' }}
+        env:
+          TAP_COMMIT: ${{ steps.commit.outputs.tap_commit }}
+        run: test "$(git ls-remote origin refs/heads/main | awk '{print $1}')" = "$TAP_COMMIT"

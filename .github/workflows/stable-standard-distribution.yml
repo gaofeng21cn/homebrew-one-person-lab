@@ -121,8 +121,8 @@ jobs:
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"; git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git diff --quiet -- Casks/one-person-lab-full.rb Casks/one-person-lab-nightly.rb || {
-            echo "::error::Standard distribution may not modify Full or Nightly casks."; exit 1;
+          git diff --quiet -- Casks/one-person-lab-full.rb Casks/one-person-lab-nightly.rb Casks/opl-fleet-agent.rb || {
+            echo "::error::Standard distribution may not modify Full, Nightly, or Fleet Agent casks."; exit 1;
           }
           for required in Formula/opl.rb Casks/one-person-lab.rb; do
             test -n "$(git status --porcelain -- "$required")" || { echo "::error::Standard distribution must advance $required."; exit 1; }

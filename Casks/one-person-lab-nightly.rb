@@ -13,7 +13,7 @@ cask "one-person-lab-nightly" do
 
   conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
   depends_on formula: "opl"
-  depends_on macos: :big_sur
+  depends_on macos: :monterey
   depends_on arch: :arm64
 
   # OPL_HOMEBREW_BOUNDARY_START

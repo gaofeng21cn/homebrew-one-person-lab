@@ -31,10 +31,11 @@ const caskFiles = fs.readdirSync(path.join(root, 'Casks'))
   .filter((name) => name.endsWith('.rb'))
   .sort();
 assert.deepEqual(
-  caskFiles.filter((name) => name !== 'one-person-lab-nightly.rb'),
+  caskFiles.filter((name) => !['one-person-lab-nightly.rb', 'opl-fleet-agent.rb'].includes(name)),
   ['one-person-lab-full.rb', 'one-person-lab.rb'],
-  'the tap may publish only the Stable, Full, and optional Nightly casks',
+  'the tap may publish only the Stable, Full, optional Nightly, and Fleet Agent casks',
 );
+assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
 assert.match(read('README.md'), /sole Formula identity is `opl`/);
 assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
 assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
@@ -53,6 +54,8 @@ assert.match(read('README.md'), /run identity stays in release evidence rather t
 assert.match(read('README.md'), /stable-standard-distribution\.yml/);
 assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
 assert.match(read('README.md'), /protected App `append_full` publisher/);
+assert.match(read('README.md'), /brew install --cask opl-fleet-agent/);
+assert.match(read('README.md'), /Fleet Agent owns the version, signed and\nnotarized DMG, checksum, and release metadata/);
 assert.doesNotMatch(read('README.md'), /stable-distribution\.yml/);
 assert.doesNotMatch(read('README.md'), /opl_stable_distribution_receipt\.v2/);
 assert.match(read('README.md'), /no eligible Nightly exists\s+it completes as a no-op/);
@@ -71,6 +74,14 @@ for (const cask of ['Casks/one-person-lab.rb']) {
     formulaPublished,
     `${cask} Formula dependency must match Formula/opl.rb publication`,
   );
+}
+for (const cask of [
+  'Casks/one-person-lab.rb',
+  'Casks/one-person-lab-full.rb',
+  'Casks/one-person-lab-nightly.rb',
+]) {
+  assert.match(read(cask), /depends_on macos: :monterey/);
+  assert.doesNotMatch(read(cask), /depends_on macos: :big_sur/);
 }
 const fullCask = read('Casks/one-person-lab-full.rb');
 const fullVersion = fullCask.match(/^\s*version "([^"]+)"$/m)?.[1];
@@ -407,6 +418,7 @@ for (const file of [
   'scripts/sync-formula-from-framework-manifest.mjs',
   'Casks/one-person-lab.rb',
   'Casks/one-person-lab-full.rb',
+  'Casks/opl-fleet-agent.rb',
   '.github/workflows/sync-from-app-releases.yml',
   '.github/workflows/tap-check.yml',
 ]) {
@@ -639,6 +651,7 @@ const nightlySuccess = spawnSync(process.execPath, [
 assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
 const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
 assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
+assert.match(generatedNightly, /depends_on macos: :monterey/);
 assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
 assert.match(generatedNightly, /# package_specific_formula_allowed: false/);
 assert.match(generatedNightly, /# package_specific_cask_allowed: false/);

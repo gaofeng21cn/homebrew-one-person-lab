@@ -1,6 +1,6 @@
 # One Person Lab Homebrew Tap
 
-Homebrew tap for OPL Base and the One Person Lab App.
+Homebrew tap for OPL Base, the One Person Lab App, and OPL Fleet Agent.
 
 ## Public Role Boundary
 
@@ -19,6 +19,12 @@ from downloaded bytes, and adds the same-tap Formula dependency to the Standard
 cask in the same atomic distribution commit and receipt. A published Nightly
 cask also consumes that Formula when present. Full consumes the App-owned
 embedded Base and must not add a Formula dependency.
+
+`Casks/opl-fleet-agent.rb` is an independent projection of published
+`gaofeng21cn/opl-fleet-agent` releases. Fleet Agent owns the version, signed and
+notarized DMG, checksum, and release metadata; this Tap verifies those exact
+bytes and exposes them through Homebrew. The Fleet Agent Cask does not depend on
+Formula `opl` and does not reuse any retired Codex TPS installation name.
 
 ## Aligned Installation Semantics
 
@@ -62,6 +68,14 @@ brew install --cask one-person-lab
 open -a "One Person Lab"
 ```
 
+Install and open OPL Fleet Agent:
+
+```bash
+brew tap gaofeng21cn/one-person-lab
+brew install --cask opl-fleet-agent
+open -a "OPL Fleet Agent"
+```
+
 Nightly builds are opt-in. The following token is available only while the App
 repository exposes an eligible immutable Nightly prerelease:
 
@@ -84,6 +98,8 @@ Formal Standard tap mutation has one workflow owner serialized by the shared
   evidence. It leaves Full and Nightly unchanged and publishes an immutable
   `stable-standard-distribution/v<version>` tag carrying
   `opl_stable_distribution_receipt.v3`.
+- `.github/workflows/sync-fleet-agent-release.yml` verifies an exact published
+  Fleet Agent release and writes only `Casks/opl-fleet-agent.rb`.
 
 The Standard route requires the App promotion session, exact
 App/Shell/Framework cohort, exact Release Set generation and digest, and
@@ -122,6 +138,8 @@ the package version, source head, or package archive checksum route to the OPL
 Framework package release authority. Cask failures involving a tag, DMG asset,
 digest, promotion, or notarization route to the App release authority. Do not add
 tap-local status, readiness, or release-currentness semantics here.
+Fleet Agent Cask failures route separately to the `opl-fleet-agent` release
+owner; they must not be interpreted as App or Framework release state.
 
 The casks download signed release assets from `gaofeng21cn/one-person-lab-app`.
 After installation, open `One Person Lab.app`; first launch uses Framework
@@ -135,7 +153,7 @@ the larger Full DMG and is written by the App protected release path. It stays
 outside standard updater metadata and does not depend on Formula `opl`. Package
 material carried inside that App-owned asset remains governed by OPL Package
 lifecycle receipts after installation; Homebrew does not version or mutate it.
-This tap permits only Formula `opl` plus the Standard and Full App Casks, with
-an optional Nightly App Cask only while its immutable prerelease exists. It
-never publishes Package-specific Formulae or Casks for MAS, MAG, RCA, OMA,
-BookForge, MAS ScholarSkills, or OPL Flow.
+This tap permits only Formula `opl` plus the Standard and Full App Casks, with an
+optional Nightly App Cask only while its immutable prerelease exists, and the
+independent OPL Fleet Agent Cask. It never publishes Package-specific Formulae
+or Casks for MAS, MAG, RCA, OMA, BookForge, MAS ScholarSkills, or OPL Flow.
