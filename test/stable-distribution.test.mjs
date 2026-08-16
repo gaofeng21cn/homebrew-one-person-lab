@@ -20,6 +20,11 @@ const nightlyWorkflow = read('.github/workflows/sync-from-app-releases.yml');
 const tapCheck = read('.github/workflows/tap-check.yml');
 const readme = read('README.md');
 
+assert.match(tapCheck, /workflow_dispatch:/);
+assert.match(tapCheck, /distribution-qualification:/);
+assert.match(tapCheck, /if: github\.event_name == 'workflow_dispatch'/);
+assert.match(tapCheck, /brew audit --strict --online/);
+
 assert.match(standardWorkflow, /git add Formula\/opl\.rb Casks\/one-person-lab\.rb/);
 assert.doesNotMatch(standardWorkflow, /git add[^\n]*one-person-lab-full/);
 assert.match(standardWorkflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb Casks\/opl-fleet-agent\.rb/);

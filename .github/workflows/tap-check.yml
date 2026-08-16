@@ -5,13 +5,16 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   audit:
-    runs-on: macos-latest
+    name: Source validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Test tap distribution boundaries
@@ -72,7 +75,21 @@ jobs:
             echo "::error::Only Casks/one-person-lab-full.rb may reference Full first-install assets."
             exit 1
           fi
-      - name: Validate Formula and casks
+      - name: Validate Ruby syntax
+        run: |
+          set -euo pipefail
+          find Formula Casks -type f -name '*.rb' -print0 |
+            xargs -0 -n1 ruby -c
+
+  distribution-qualification:
+    name: Homebrew online distribution qualification
+    if: github.event_name == 'workflow_dispatch'
+    needs: audit
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate Formula and casks against public distribution
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
         run: |
