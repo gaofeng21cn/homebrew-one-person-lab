@@ -19,6 +19,11 @@ assert.match(read('.gitignore'), /^\.worktrees\/$/m);
 
 const formulaDir = path.join(root, 'Formula');
 const formulaPublished = fs.existsSync(path.join(formulaDir, 'opl.rb'));
+assert.match(read('Formula/opl.rb'), /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
+assert.doesNotMatch(read('Formula/opl.rb'), /npm = formula_opt_bin/);
+assert.match(read('Formula/opl.rb'), /Homebrew 5\.1\.3 does not expose formula_opt_bin/);
+assert.match(read('Formula/opl.rb'), /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
+assert.match(read('Formula/opl.rb'), /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
 const formulaFiles = fs.existsSync(formulaDir)
   ? fs.readdirSync(formulaDir).filter((name) => name.endsWith('.rb')).sort()
   : [];
@@ -346,6 +351,11 @@ assert.match(renderedFormula, /opl_packages_lifecycle_command: opl packages/);
 assert.match(renderedFormula, /user_state_initialized_during_brew_install: false/);
 assert.match(renderedFormula, /first_user_state_reconcile: opl install --headless --skip-packages/);
 assert.match(renderedFormula, /ENV\["npm_config_cache"\] = buildpath\/"\.npm-cache"/);
+assert.match(renderedFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
+assert.match(renderedFormula, /Homebrew 5\.1\.3 does not expose formula_opt_bin/);
+assert.doesNotMatch(renderedFormula, /npm = formula_opt_bin/);
+assert.match(renderedFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
+assert.match(renderedFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
 assert.match(renderedFormula, /system npm, "install", "--omit=dev", "--ignore-scripts"/);
 assert.doesNotMatch(renderedFormula, /system npm, "prune"/);
 assert.doesNotMatch(renderedFormula, /system npm, "ci"/);
