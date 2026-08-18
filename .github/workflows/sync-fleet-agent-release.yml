@@ -30,11 +30,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=()
           if [ -n "$RELEASE_TAG" ]; then
-            args+=(--release-tag "$RELEASE_TAG")
+            node scripts/sync-fleet-agent-cask.mjs --release-tag "$RELEASE_TAG"
+          else
+            node scripts/sync-fleet-agent-cask.mjs
           fi
-          node scripts/sync-fleet-agent-cask.mjs "${args[@]}"
 
       - name: Validate Fleet Agent projection
         env:

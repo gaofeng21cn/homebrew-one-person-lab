@@ -132,6 +132,16 @@ for (const workflow of [
   assert.doesNotMatch(read(workflow), /--no-signing/);
   assert.match(read(workflow), /Full casks consume the App-owned embedded Base and must not depend on Formula opl/);
 }
+const fleetAgentSyncWorkflow = read('.github/workflows/sync-fleet-agent-release.yml');
+assert.doesNotMatch(
+  fleetAgentSyncWorkflow,
+  /\$\{args\[@\]\}/,
+  'macOS Bash 3.2 must not expand an empty array under set -u',
+);
+assert.match(
+  fleetAgentSyncWorkflow,
+  /if \[ -n "\$RELEASE_TAG" \]; then[\s\S]*sync-fleet-agent-cask\.mjs --release-tag "\$RELEASE_TAG"[\s\S]*else[\s\S]*sync-fleet-agent-cask\.mjs[\s\S]*fi/,
+);
 assert.equal(fs.existsSync(path.join(root, '.github/workflows/stable-distribution.yml')), false);
 assert.equal(fs.existsSync(path.join(root, 'scripts/prepare-stable-distribution.mjs')), false);
 assert.equal(fs.existsSync(path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs')), false);
