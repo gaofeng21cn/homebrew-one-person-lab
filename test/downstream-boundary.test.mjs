@@ -125,10 +125,10 @@ assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
 assert.match(fullCask, /# active_framework_count_target: 1/);
 assert.match(read('README.md'), /Full consumes the App-owned\s+embedded Base/);
 assert.match(read('README.md'), /does not depend on Formula `opl`/);
-assert.match(
-  fullCask,
-  /skip "The immutable Release Bundle maps display tags to monotonic machine versions"/,
-);
+for (const stableCask of [read('Casks/one-person-lab.rb'), fullCask]) {
+  assert.match(stableCask, /skip "Stable casks pair display tags with monotonic updater versions"/);
+  assert.doesNotMatch(stableCask, /immutable/i);
+}
 assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
 for (const workflow of [
   '.github/workflows/tap-check.yml',

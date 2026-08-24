@@ -8,7 +8,7 @@ cask "one-person-lab" do
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
 
   livecheck do
-    skip "The immutable Release Bundle maps display tags to monotonic machine versions"
+    skip "Stable casks pair display tags with monotonic updater versions"
   end
 
   conflicts_with cask: ["one-person-lab-full", "one-person-lab-nightly"]
