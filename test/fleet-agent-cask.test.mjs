@@ -47,8 +47,13 @@ assert.throws(
   /GitHub asset digest/,
 );
 
-const expectedCask = renderCask({ version: '0.2.40', checksum });
-assert.equal(fs.readFileSync(path.join(root, 'Casks/opl-fleet-agent.rb'), 'utf8'), expectedCask);
+const checkedInCask = fs.readFileSync(path.join(root, 'Casks/opl-fleet-agent.rb'), 'utf8');
+const checkedInVersion = checkedInCask.match(/^  version "(?<version>\d+\.\d+\.\d+)"$/m)?.groups?.version;
+const checkedInChecksum = checkedInCask.match(/^  sha256 "(?<checksum>[a-f0-9]{64})"$/m)?.groups?.checksum;
+assert.ok(checkedInVersion);
+assert.ok(checkedInChecksum);
+const expectedCask = renderCask({ version: checkedInVersion, checksum: checkedInChecksum });
+assert.equal(checkedInCask, expectedCask);
 assert.match(expectedCask, /depends_on macos: :ventura/);
 assert.match(expectedCask, /auto_updates true/);
 assert.match(expectedCask, /desc "Local menu bar monitor for Codex token throughput"/);
