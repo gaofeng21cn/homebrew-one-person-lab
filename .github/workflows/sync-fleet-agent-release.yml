@@ -45,6 +45,8 @@ jobs:
           node test/fleet-agent-cask.test.mjs
           node test/downstream-boundary.test.mjs
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          tap_root="$(brew --repository "$GITHUB_REPOSITORY")"
+          cp "$GITHUB_WORKSPACE/Casks/opl-fleet-agent.rb" "$tap_root/Casks/opl-fleet-agent.rb"
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"
           fi
