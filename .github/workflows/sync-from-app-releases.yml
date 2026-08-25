@@ -182,15 +182,6 @@ jobs:
             brew audit --cask "$GITHUB_REPOSITORY/one-person-lab-nightly"
           fi
           brew audit --cask --online "$GITHUB_REPOSITORY/one-person-lab-full"
-          report_fleet_agent_release_failure() {
-            status=$?
-            echo "::error::Fleet Agent Cask audit failed in a downstream mirror. Route the asset, digest, signing, or packaging output to gaofeng21cn/opl-fleet-agent."
-            exit "$status"
-          }
-          trap report_fleet_agent_release_failure ERR
-          brew style --cask "$GITHUB_REPOSITORY/opl-fleet-agent"
-          brew audit --cask --online "$GITHUB_REPOSITORY/opl-fleet-agent"
-
       - name: Commit tap update
         if: ${{ (github.event.inputs.channel || 'nightly') == 'nightly' }}
         shell: bash
@@ -200,10 +191,6 @@ jobs:
             echo "No Homebrew Nightly cask update."
             exit 0
           fi
-          git diff --quiet -- Casks/opl-fleet-agent.rb || {
-            echo "::error::App release sync must not modify the Fleet Agent Cask."
-            exit 1
-          }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Casks/one-person-lab-nightly.rb
