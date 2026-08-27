@@ -22,6 +22,7 @@ jobs:
           node test/downstream-boundary.test.mjs
           node test/stable-distribution.test.mjs
           node test/fleet-agent-cask.test.mjs
+          node test/codex-model-manager-cask.test.mjs
       - name: Guard tap surface
         run: |
           set -euo pipefail
@@ -51,8 +52,8 @@ jobs:
             fi
             echo "::warning::Accepting the exact legacy Full cask as read-only migration input; any replacement must remove the Formula dependency."
           fi
-          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' ! -name 'opl-fleet-agent.rb' | grep .; then
-            echo "::error::This tap may publish only the stable, nightly, and Full App casks plus OPL Fleet Agent."
+          if find Casks -type f ! -name 'one-person-lab.rb' ! -name 'one-person-lab-nightly.rb' ! -name 'one-person-lab-full.rb' ! -name 'opl-fleet-agent.rb' ! -name 'opl-codex-model-manager.rb' | grep .; then
+            echo "::error::This tap may publish only the stable, nightly, and Full App casks plus OPL Fleet Agent and Codex Model Manager."
             exit 1
           fi
           published_casks=(Casks/one-person-lab.rb Casks/one-person-lab-full.rb)
@@ -69,6 +70,12 @@ jobs:
           grep -q '# retired_install_aliases_allowed: false' Casks/opl-fleet-agent.rb || { echo "::error::Fleet Agent must not restore retired install aliases."; exit 1; }
           if grep -q 'depends_on formula:' Casks/opl-fleet-agent.rb; then
             echo "::error::OPL Fleet Agent must remain independent of Formula opl."
+            exit 1
+          fi
+          grep -q '# release_truth_authority: opl-codex-model-manager_release' Casks/opl-codex-model-manager.rb || { echo "::error::Codex Model Manager release truth must remain in opl-codex-model-manager."; exit 1; }
+          grep -q '# user_model_data_preserved_on_uninstall: true' Casks/opl-codex-model-manager.rb || { echo "::error::Codex Model Manager uninstall must preserve user model data."; exit 1; }
+          if grep -q 'depends_on formula:' Casks/opl-codex-model-manager.rb; then
+            echo "::error::Codex Model Manager must remain independent of Formula opl."
             exit 1
           fi
           if grep -R "One-Person-Lab-Full" "${formula_casks[@]}"; then
@@ -133,3 +140,11 @@ jobs:
           trap report_fleet_agent_release_failure ERR
           brew style --cask "$GITHUB_REPOSITORY/opl-fleet-agent"
           brew audit --cask --online "$GITHUB_REPOSITORY/opl-fleet-agent"
+          report_codex_model_manager_release_failure() {
+            status=$?
+            echo "::error::Codex Model Manager Cask audit failed in a downstream mirror. Route the asset, digest, signing, or packaging output to gaofeng21cn/opl-codex-model-manager."
+            exit "$status"
+          }
+          trap report_codex_model_manager_release_failure ERR
+          brew style --cask "$GITHUB_REPOSITORY/opl-codex-model-manager"
+          brew audit --cask --online "$GITHUB_REPOSITORY/opl-codex-model-manager"

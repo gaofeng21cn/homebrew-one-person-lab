@@ -27,7 +27,7 @@ assert.match(tapCheck, /brew audit --strict --online/);
 
 assert.match(standardWorkflow, /git add Formula\/opl\.rb Casks\/one-person-lab\.rb/);
 assert.doesNotMatch(standardWorkflow, /git add[^\n]*one-person-lab-full/);
-assert.match(standardWorkflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb Casks\/opl-fleet-agent\.rb/);
+assert.match(standardWorkflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb Casks\/opl-fleet-agent\.rb Casks\/opl-codex-model-manager\.rb/);
 
 assert.match(nightlyWorkflow, /git add Casks\/one-person-lab-nightly\.rb/);
 assert.doesNotMatch(nightlyWorkflow, /git add[^\n]*one-person-lab-full/);

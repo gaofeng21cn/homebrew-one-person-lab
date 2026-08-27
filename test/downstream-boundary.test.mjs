@@ -36,11 +36,12 @@ const caskFiles = fs.readdirSync(path.join(root, 'Casks'))
   .filter((name) => name.endsWith('.rb'))
   .sort();
 assert.deepEqual(
-  caskFiles.filter((name) => !['one-person-lab-nightly.rb', 'opl-fleet-agent.rb'].includes(name)),
+  caskFiles.filter((name) => !['one-person-lab-nightly.rb', 'opl-fleet-agent.rb', 'opl-codex-model-manager.rb'].includes(name)),
   ['one-person-lab-full.rb', 'one-person-lab.rb'],
-  'the tap may publish only the Stable, Full, optional Nightly, and Fleet Agent casks',
+  'the tap may publish only the Stable, Full, optional Nightly, Fleet Agent, and Codex Model Manager casks',
 );
 assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
+assert.ok(caskFiles.includes('opl-codex-model-manager.rb'), 'the unified OPL Tap must publish Codex Model Manager');
 assert.match(read('README.md'), /sole Formula identity is `opl`/);
 assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
 assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
@@ -61,6 +62,8 @@ assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
 assert.match(read('README.md'), /protected App `append_full` publisher/);
 assert.match(read('README.md'), /brew install --cask opl-fleet-agent/);
 assert.match(read('README.md'), /Fleet Agent owns the version, signed and\nnotarized DMG, checksum, and release metadata/);
+assert.match(read('README.md'), /brew install --cask opl-codex-model-manager/);
+assert.match(read('README.md'), /Codex Model Manager owns the\nversion, signed and notarized universal DMG, checksum, and release metadata/);
 assert.doesNotMatch(read('README.md'), /stable-distribution\.yml/);
 assert.doesNotMatch(read('README.md'), /opl_stable_distribution_receipt\.v2/);
 assert.match(read('README.md'), /no eligible Nightly exists\s+it completes as a no-op/);
@@ -439,6 +442,7 @@ for (const file of [
   'Casks/one-person-lab.rb',
   'Casks/one-person-lab-full.rb',
   'Casks/opl-fleet-agent.rb',
+  'Casks/opl-codex-model-manager.rb',
   '.github/workflows/sync-from-app-releases.yml',
   '.github/workflows/tap-check.yml',
 ]) {

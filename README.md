@@ -1,6 +1,6 @@
 # One Person Lab Homebrew Tap
 
-Homebrew tap for OPL Base, the One Person Lab App, and OPL Fleet Agent.
+Homebrew tap for OPL Base, the One Person Lab App, OPL Fleet Agent, and Codex Model Manager.
 
 ## Public Role Boundary
 
@@ -25,6 +25,12 @@ embedded Base and must not add a Formula dependency.
 notarized DMG, checksum, and release metadata; this Tap verifies those exact
 bytes and exposes them through Homebrew. The Fleet Agent Cask does not depend on
 Formula `opl` and does not reuse any retired Codex TPS installation name.
+
+`Casks/opl-codex-model-manager.rb` independently projects published
+`gaofeng21cn/opl-codex-model-manager` releases. Codex Model Manager owns the
+version, signed and notarized universal DMG, checksum, and release metadata.
+This Tap verifies those exact bytes and does not make the Cask depend on Formula
+`opl`.
 
 ## Aligned Installation Semantics
 
@@ -76,6 +82,14 @@ brew install --cask opl-fleet-agent
 open -a "OPL Fleet Agent"
 ```
 
+Install and open Codex Model Manager:
+
+```bash
+brew tap gaofeng21cn/one-person-lab
+brew install --cask opl-codex-model-manager
+open -a "Codex 模型管理器"
+```
+
 Nightly builds are opt-in. The following token is available only while the App
 repository exposes an eligible immutable Nightly prerelease:
 
@@ -100,6 +114,9 @@ Formal Standard tap mutation has one workflow owner serialized by the shared
   `opl_stable_distribution_receipt.v3`.
 - `.github/workflows/sync-fleet-agent-release.yml` verifies an exact published
   Fleet Agent release and writes only `Casks/opl-fleet-agent.rb`.
+- `.github/workflows/sync-codex-model-manager-release.yml` verifies an exact
+  Codex Model Manager release and writes only
+  `Casks/opl-codex-model-manager.rb`.
 
 The Standard route requires the App promotion session, exact
 App/Shell/Framework cohort, exact Release Set generation and digest, and
@@ -140,6 +157,8 @@ digest, promotion, or notarization route to the App release authority. Do not ad
 tap-local status, readiness, or release-currentness semantics here.
 Fleet Agent Cask failures route separately to the `opl-fleet-agent` release
 owner; they must not be interpreted as App or Framework release state.
+Codex Model Manager Cask failures likewise route to the
+`opl-codex-model-manager` release owner.
 
 The casks download signed release assets from `gaofeng21cn/one-person-lab-app`.
 After installation, open `One Person Lab.app`; first launch uses Framework
@@ -155,5 +174,6 @@ material carried inside that App-owned asset remains governed by OPL Package
 lifecycle receipts after installation; Homebrew does not version or mutate it.
 This tap permits only Formula `opl` plus the Standard and Full App Casks, with an
 optional Nightly App Cask only while its immutable prerelease exists, and the
-independent OPL Fleet Agent Cask. It never publishes Package-specific Formulae
-or Casks for MAS, MAG, RCA, OMA, BookForge, MAS ScholarSkills, or OPL Flow.
+independent OPL Fleet Agent and Codex Model Manager Casks. It never publishes
+Package-specific Formulae or Casks for MAS, MAG, RCA, OMA, BookForge, MAS
+ScholarSkills, or OPL Flow.
