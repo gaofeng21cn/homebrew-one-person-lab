@@ -1,6 +1,6 @@
 cask "one-person-lab" do
-  version "26.8.2791,26.8.27"
-  sha256 "80b14b96f0071d55d5436aeaa2de9924c5d077d07602c619f0a4471da1e14e50"
+  version "26.8.2792,26.8.27-r1"
+  sha256 "b9f631ed455f7992ce86ee26ff72bff68af24d381629527b190e2ed223d76981"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version.csv.second}/One-Person-Lab-#{version.csv.second}-mac-arm64.dmg"
   name "One Person Lab"
@@ -19,11 +19,11 @@ cask "one-person-lab" do
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: stable
   # package_kind: app_standard
-  # version: 26.8.27
-  # display_version: 26.8.27
-  # updater_version: 26.8.2791
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.8.27/opl-app-component-manifest.json
-  # checksum: sha256:80b14b96f0071d55d5436aeaa2de9924c5d077d07602c619f0a4471da1e14e50
+  # version: 26.8.27-r1
+  # display_version: 26.8.27-r1
+  # updater_version: 26.8.2792
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.8.27-r1/opl-app-component-manifest.json
+  # checksum: sha256:b9f631ed455f7992ce86ee26ff72bff68af24d381629527b190e2ed223d76981
   # full_first_install_allowed: false
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
