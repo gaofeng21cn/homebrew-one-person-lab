@@ -15,6 +15,5 @@ cask "opl-codex-model-manager" do
 
   app "CodexModelManager.app"
 
-  uninstall launchctl: "com.onepersonlab.codex-model-manager.sync",
-            delete:    "~/Library/LaunchAgents/com.onepersonlab.codex-model-manager.sync.plist"
+  uninstall launchctl: "com.onepersonlab.codex-model-manager.sync"
 end
