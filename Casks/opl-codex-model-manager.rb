@@ -1,6 +1,6 @@
 cask "opl-codex-model-manager" do
-  version "0.2.0"
-  sha256 "9f0949228f4c9710bc9aab6e21f74deb6de9eea42f7f83238863e04f520c3926"
+  version "0.3.0"
+  sha256 "c09f88b813566a285e9f1ec77a0d1928e1894b27f5fb7fd250d887c381402bb0"
 
   url "https://github.com/gaofeng21cn/opl-codex-model-manager/releases/download/v#{version}/Codex-Model-Manager.dmg"
   name "Codex Model Manager"
