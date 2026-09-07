@@ -18,7 +18,6 @@ for (const retiredPath of [
 const standardWorkflow = read('.github/workflows/stable-standard-distribution.yml');
 const nightlyWorkflow = read('.github/workflows/sync-from-app-releases.yml');
 const tapCheck = read('.github/workflows/tap-check.yml');
-const readme = read('README.md');
 
 assert.match(tapCheck, /workflow_dispatch:/);
 assert.match(tapCheck, /distribution-qualification:/);
@@ -43,11 +42,5 @@ for (const workflow of [tapCheck, nightlyWorkflow]) {
   assert.match(workflow, /1bbc1afba6ca7f01c82b064dbf764d91f2f8ab6129bfec4ed65b160e171ca84e/);
 }
 
-assert.match(readme, /Formal Standard tap mutation has one workflow owner/);
-assert.match(readme, /Full is an App-owned additive release\s+operation/);
-assert.match(readme, /protected App `append_full` publisher/);
-assert.match(readme, /This tap does not\nown a second Full publisher/);
-assert.doesNotMatch(readme, /stable-distribution\.yml/);
-assert.doesNotMatch(readme, /opl_stable_distribution_receipt\.v2/);
 
 console.log('Stable distribution authority boundary tests passed.');

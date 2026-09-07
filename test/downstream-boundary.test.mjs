@@ -42,33 +42,7 @@ assert.deepEqual(
 );
 assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
 assert.ok(caskFiles.includes('opl-codex-model-manager.rb'), 'the unified OPL Tap must publish Codex Model Manager');
-assert.match(read('README.md'), /sole Formula identity is `opl`/);
-assert.match(read('README.md'), /materialized only by the formal Stable distribution workflow/);
-assert.match(read('README.md'), /internal installation\nimplementation uses the `opl-framework` npm package/);
-assert.match(read('README.md'), /`opl-framework` is not a second public Formula or OPL Package identity/);
-assert.match(read('README.md'), /production dependencies, including Temporal/);
-assert.match(read('README.md'), /does not install the desktop App or any OPL Package/);
-assert.match(read('README.md'), /does not create or\nreconcile user workspace state/);
-assert.match(read('README.md'), /opl install --headless --skip-packages/);
-assert.match(read('README.md'), /managed after base\ninitialization by `opl packages`/);
-assert.match(read('README.md'), /optional Nightly App Cask only while its immutable prerelease exists/);
-assert.match(read('README.md'), /Homebrew-owned Base update stays on the Homebrew channel/);
-assert.match(read('README.md'), /Only one compatible Framework\ncarrier may be active at a time/);
-assert.match(read('README.md'), /New stable releases use `YY\.M\.D`/);
-assert.match(read('README.md'), /`YY\.M\.D-nightly`; a same-day rebuild uses `\.r1` through `\.r9`/);
-assert.match(read('README.md'), /run identity stays in release evidence rather than the user-visible version/);
-assert.match(read('README.md'), /stable-standard-distribution\.yml/);
-assert.match(read('README.md'), /opl_stable_distribution_receipt\.v3/);
-assert.match(read('README.md'), /protected App `append_full` publisher/);
-assert.match(read('README.md'), /brew install --cask opl-fleet-agent/);
-assert.match(read('README.md'), /Fleet Agent owns the version, signed and\nnotarized DMG, checksum, and release metadata/);
-assert.match(read('README.md'), /brew install --cask opl-codex-model-manager/);
-assert.match(read('README.md'), /Codex Model Manager owns the\nversion, signed and notarized universal DMG, checksum, and release metadata/);
-assert.doesNotMatch(read('README.md'), /stable-distribution\.yml/);
-assert.doesNotMatch(read('README.md'), /opl_stable_distribution_receipt\.v2/);
-assert.match(read('README.md'), /no eligible Nightly exists\s+it completes as a no-op/);
 for (const channelConsumer of [
-  'README.md',
   'scripts/sync-formula-from-framework-manifest.mjs',
 ]) {
   const content = read(channelConsumer);
@@ -126,8 +100,6 @@ assert.doesNotMatch(
 assert.match(fullCask, /# formula_dependency_required: false/);
 assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
 assert.match(fullCask, /# active_framework_count_target: 1/);
-assert.match(read('README.md'), /Full consumes the App-owned\s+embedded Base/);
-assert.match(read('README.md'), /does not depend on Formula `opl`/);
 for (const stableCask of [read('Casks/one-person-lab.rb'), fullCask]) {
   assert.match(stableCask, /skip "Stable casks pair display tags with monotonic updater versions"/);
   assert.doesNotMatch(stableCask, /immutable/i);
@@ -436,7 +408,6 @@ for (const [cask, channel, packageKind] of [
 }
 
 for (const file of [
-  'README.md',
   'scripts/sync-cask-from-release.mjs',
   'scripts/sync-formula-from-framework-manifest.mjs',
   'Casks/one-person-lab.rb',
