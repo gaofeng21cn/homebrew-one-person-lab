@@ -1,6 +1,6 @@
 cask "opl-fleet-agent" do
-  version "0.2.42"
-  sha256 "6a4d179e28063a800ab9fb3d3b3fc2e91a8151569887d80a268e296f9ba433d1"
+  version "0.2.45"
+  sha256 "dc69cf11228d6e4ab3e0601453dc616a4f29e3c81e091b81f4c5121b30ce8ddb"
 
   url "https://github.com/gaofeng21cn/opl-fleet-agent/releases/download/v#{version}/OPL-Fleet-Agent.dmg"
   name "OPL Fleet Agent"
