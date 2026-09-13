@@ -91,13 +91,15 @@ export function verifyDownloadedAssets({ release, dmgBytes, checksumBytes }) {
 }
 
 export function renderCask({ version, checksum }) {
+  const displayName = version.localeCompare('0.4.0', 'en', { numeric: true }) >= 0
+    ? 'Codex Models' : 'Codex Model Manager';
   return [
     'cask "opl-codex-model-manager" do',
     `  version "${version}"`,
     `  sha256 "${checksum}"`,
     '',
     '  url "https://github.com/gaofeng21cn/opl-codex-model-manager/releases/download/v#{version}/Codex-Model-Manager.dmg"',
-    '  name "Codex Model Manager"',
+    `  name "${displayName}"`,
     '  desc "Manage Codex official and custom model catalogs"',
     '  homepage "https://github.com/gaofeng21cn/opl-codex-model-manager"',
     '',
