@@ -1,9 +1,10 @@
 # One Person Lab Homebrew Tap
 
-本仓是 OPL Base Formula、OPL App Casks、OPL Fleet Agent Cask 与 Codex Model Manager Cask 的下游分发索引，不拥有 Framework、App、Fleet Agent、Codex Model Manager 或 Package release truth。
+本仓是 OPL Base Formula、OPL App Casks、OPL Fleet Agent Cask 与 Codex Models Cask 的下游分发索引，不拥有 Framework、App、Fleet Agent、Codex Models 或 Package release truth。
 
-- 只允许 `Formula/opl.rb`、`Casks/one-person-lab*.rb`、`Casks/opl-fleet-agent.rb` 和 `Casks/opl-codex-model-manager.rb`；不得新增 MAS、MAG、RCA、OMA、BookForge、ScholarSkills 或 Flow 的独立 Formula/Cask。
-- Stable App Formula/Cask、Fleet Agent Cask 与 Codex Model Manager Cask 分别由各自 workflow 从 owner release inputs 生成；不要手工改写版本、URL、checksum 或发布 receipt。
+- 只允许 `Formula/opl.rb`、`Casks/one-person-lab*.rb`、`Casks/opl-fleet-agent.rb` 和 `Casks/opl-codex-models.rb`；不得新增 MAS、MAG、RCA、OMA、BookForge、ScholarSkills 或 Flow 的独立 Formula/Cask。
+- Stable App Formula/Cask、Fleet Agent Cask 与 Codex Models Cask 分别由各自 workflow 从 owner release inputs 生成；不要手工改写版本、URL、checksum 或发布 receipt。
+- Codex Models 的旧安装名通过 `cask_renames.json` 迁移，不发布重复 Cask。
 - Nightly 同步只写 Nightly；Stable/Full 诊断不得变成旁路发布。
 - 默认验证运行 `node test/downstream-boundary.test.mjs`、相关 distribution tests 和 `git diff --check`；正式发布还须通过 workflow 中的 `brew style/audit` 与远端 tag/main readback。
 

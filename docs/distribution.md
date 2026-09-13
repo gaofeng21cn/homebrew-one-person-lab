@@ -20,9 +20,9 @@ one compatible carrier may be active. Homebrew does not version or mutate
 Package payloads carried inside Full; installed Package lifecycle remains
 Framework-owned.
 
-Fleet Agent and Codex Model Manager are independent casks. Each owner publishes
+Fleet Agent and Codex Models are independent casks. Each owner publishes
 its signed, notarized DMG, checksum, version, and metadata; the Tap verifies
-those exact bytes. Codex Model Manager's release DMG is universal. Neither cask
+those exact bytes. Codex Models's release DMG is universal. Neither cask
 depends on Formula `opl`.
 
 The Tap does not publish Package-specific Formulae or Casks. Allowed product
@@ -37,7 +37,7 @@ casks, workflows, and boundary tests.
 | Full cask | App protected `append_full` publisher | Qualified Full DMG and embedded Base bytes |
 | Nightly cask | `sync-from-app-releases.yml` | Eligible immutable App Nightly prerelease |
 | Fleet Agent cask | `sync-fleet-agent-release.yml` | Exact Fleet Agent release |
-| Codex Model Manager cask | `sync-codex-model-manager-release.yml` | Exact model-manager release |
+| Codex Models cask | `sync-codex-models-release.yml` | Exact model-manager release |
 
 Tap workflows serialize writes with `opl-homebrew-tap-write`. Standard writes
 Formula and Standard together and leaves other casks unchanged. Full is an
@@ -75,7 +75,7 @@ node test/downstream-boundary.test.mjs
 node test/stable-distribution.test.mjs
 node test/stable-standard-distribution.test.mjs
 node test/fleet-agent-cask.test.mjs
-node test/codex-model-manager-cask.test.mjs
+node test/codex-models-cask.test.mjs
 git diff --check
 ```
 
@@ -85,7 +85,7 @@ installed App, successful publication, or current remote cask.
 
 Formula version, source head, or archive checksum failures route to Framework.
 App tag, asset, digest, promotion, and notarization failures route to App.
-Fleet Agent and Codex Model Manager failures route to their respective release
+Fleet Agent and Codex Models failures route to their respective release
 owners. Preserve that ownership when diagnosing transport failures; do not add
 Tap-local readiness or release-currentness state.
 

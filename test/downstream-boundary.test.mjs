@@ -36,12 +36,12 @@ const caskFiles = fs.readdirSync(path.join(root, 'Casks'))
   .filter((name) => name.endsWith('.rb'))
   .sort();
 assert.deepEqual(
-  caskFiles.filter((name) => !['one-person-lab-nightly.rb', 'opl-fleet-agent.rb', 'opl-codex-model-manager.rb'].includes(name)),
+  caskFiles.filter((name) => !['one-person-lab-nightly.rb', 'opl-fleet-agent.rb', 'opl-codex-models.rb'].includes(name)),
   ['one-person-lab-full.rb', 'one-person-lab.rb'],
-  'the tap may publish only the Stable, Full, optional Nightly, Fleet Agent, and Codex Model Manager casks',
+  'the tap may publish only the Stable, Full, optional Nightly, Fleet Agent, and Codex Models casks',
 );
 assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
-assert.ok(caskFiles.includes('opl-codex-model-manager.rb'), 'the unified OPL Tap must publish Codex Model Manager');
+assert.ok(caskFiles.includes('opl-codex-models.rb'), 'the unified OPL Tap must publish Codex Models');
 for (const channelConsumer of [
   'scripts/sync-formula-from-framework-manifest.mjs',
 ]) {
@@ -413,7 +413,7 @@ for (const file of [
   'Casks/one-person-lab.rb',
   'Casks/one-person-lab-full.rb',
   'Casks/opl-fleet-agent.rb',
-  'Casks/opl-codex-model-manager.rb',
+  'Casks/opl-codex-models.rb',
   '.github/workflows/sync-from-app-releases.yml',
   '.github/workflows/tap-check.yml',
 ]) {

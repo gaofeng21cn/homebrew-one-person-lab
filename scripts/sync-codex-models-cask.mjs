@@ -7,14 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const releaseRepo = 'gaofeng21cn/opl-codex-model-manager';
-const dmgName = 'Codex-Model-Manager.dmg';
+const releaseRepo = 'gaofeng21cn/opl-codex-models';
+const dmgName = 'Codex-Models.dmg';
 const checksumName = `${dmgName}.sha256`;
 const releaseTagPattern = /^v(?<version>\d+\.\d+\.\d+)$/;
 const digestPattern = /^sha256:(?<hash>[a-f0-9]{64})$/i;
 
 export function parseArgs(argv) {
-  const options = { releaseTag: '', caskPath: path.join('Casks', 'opl-codex-model-manager.rb') };
+  const options = { releaseTag: '', caskPath: path.join('Casks', 'opl-codex-models.rb') };
   for (let index = 0; index < argv.length; index += 1) {
     const option = argv[index];
     const value = argv[index + 1];
@@ -35,13 +35,13 @@ export function validateRelease(release, requestedTag = '') {
   const tag = String(release?.tagName ?? '');
   const match = tag.match(releaseTagPattern);
   if (!match?.groups?.version) {
-    throw new Error('Codex Model Manager Homebrew sync requires a vX.Y.Z release tag.');
+    throw new Error('Codex Models Homebrew sync requires a vX.Y.Z release tag.');
   }
   if (requestedTag && tag !== requestedTag) {
     throw new Error(`Release tag mismatch: expected ${requestedTag}, got ${tag}.`);
   }
   if (release.isDraft || release.isPrerelease) {
-    throw new Error('Codex Model Manager Homebrew sync requires a published, non-prerelease release.');
+    throw new Error('Codex Models Homebrew sync requires a published, non-prerelease release.');
   }
   return { tag, version: match.groups.version };
 }
@@ -65,7 +65,7 @@ export function sha256(bytes) {
 }
 
 export function checksumFromFile(content) {
-  const match = String(content).trim().match(/^([a-f0-9]{64})  Codex-Model-Manager\.dmg$/i);
+  const match = String(content).trim().match(/^([a-f0-9]{64})  Codex-Models\.dmg$/i);
   if (!match) throw new Error(`${checksumName} must contain one checksum for ${dmgName}.`);
   return match[1].toLowerCase();
 }
@@ -91,21 +91,19 @@ export function verifyDownloadedAssets({ release, dmgBytes, checksumBytes }) {
 }
 
 export function renderCask({ version, checksum }) {
-  const displayName = version.localeCompare('0.4.0', 'en', { numeric: true }) >= 0
-    ? 'Codex Models' : 'Codex Model Manager';
   return [
-    'cask "opl-codex-model-manager" do',
+    'cask "opl-codex-models" do',
     `  version "${version}"`,
     `  sha256 "${checksum}"`,
     '',
-    '  url "https://github.com/gaofeng21cn/opl-codex-model-manager/releases/download/v#{version}/Codex-Model-Manager.dmg"',
-    `  name "${displayName}"`,
+    '  url "https://github.com/gaofeng21cn/opl-codex-models/releases/download/v#{version}/Codex-Models.dmg"',
+    '  name "Codex Models"',
     '  desc "Manage Codex official and custom model catalogs"',
-    '  homepage "https://github.com/gaofeng21cn/opl-codex-model-manager"',
+    '  homepage "https://github.com/gaofeng21cn/opl-codex-models"',
     '',
     '  depends_on macos: :sonoma',
     '',
-    '  # release_truth_authority: opl-codex-model-manager_release',
+    '  # release_truth_authority: opl-codex-models_release',
     '  # downstream_mirror_only: true',
     '  # user_model_data_preserved_on_uninstall: true',
     '',
@@ -152,7 +150,7 @@ export function main(argv = process.argv.slice(2)) {
   viewArgs.push('--repo', releaseRepo, '--json', 'tagName,isDraft,isPrerelease,assets');
   const release = ghJson(viewArgs);
   const { tag, version } = validateRelease(release, options.releaseTag);
-  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-model-manager-cask.'));
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-models-cask.'));
   try {
     downloadReleaseAssets(tag, temporaryDirectory);
     const checksum = verifyDownloadedAssets({

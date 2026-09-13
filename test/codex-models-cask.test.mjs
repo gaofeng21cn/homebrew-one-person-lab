@@ -10,11 +10,15 @@ import {
   validateRelease,
   verifyDownloadedAssets,
   writeAtomically,
-} from '../scripts/sync-codex-model-manager-cask.mjs';
+} from '../scripts/sync-codex-models-cask.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const renames = JSON.parse(fs.readFileSync(path.join(root, 'cask_renames.json'), 'utf8'));
+assert.equal(renames['opl-codex-model-manager'], 'opl-codex-models');
+assert.ok(fs.existsSync(path.join(root, 'Casks/opl-codex-models.rb')));
+assert.ok(!fs.existsSync(path.join(root, 'Casks/opl-codex-model-manager.rb')));
 const checksum = '9f0949228f4c9710bc9aab6e21f74deb6de9eea42f7f83238863e04f520c3926';
-const checksumContent = `${checksum}  Codex-Model-Manager.dmg\n`;
+const checksumContent = `${checksum}  Codex-Models.dmg\n`;
 const digest = (content) => createHash('sha256').update(content).digest('hex');
 
 assert.deepEqual(validateRelease({ tagName: 'v0.2.0', isDraft: false, isPrerelease: false }), {
@@ -34,11 +38,11 @@ assert.throws(() => checksumFromFile(`${checksum}  Other.dmg\n`), /one checksum/
 
 const dmgBytes = Buffer.from('signed-and-notarized-dmg-fixture');
 const publishedChecksum = digest(dmgBytes);
-const checksumBytes = Buffer.from(`${publishedChecksum}  Codex-Model-Manager.dmg\n`);
+const checksumBytes = Buffer.from(`${publishedChecksum}  Codex-Models.dmg\n`);
 const release = {
   assets: [
-    { name: 'Codex-Model-Manager.dmg', digest: `sha256:${publishedChecksum}` },
-    { name: 'Codex-Model-Manager.dmg.sha256', digest: `sha256:${digest(checksumBytes)}` },
+    { name: 'Codex-Models.dmg', digest: `sha256:${publishedChecksum}` },
+    { name: 'Codex-Models.dmg.sha256', digest: `sha256:${digest(checksumBytes)}` },
   ],
 };
 assert.equal(verifyDownloadedAssets({ release, dmgBytes, checksumBytes }), publishedChecksum);
@@ -47,7 +51,7 @@ assert.throws(
   /GitHub asset digest/,
 );
 
-const checkedInCask = fs.readFileSync(path.join(root, 'Casks/opl-codex-model-manager.rb'), 'utf8');
+const checkedInCask = fs.readFileSync(path.join(root, 'Casks/opl-codex-models.rb'), 'utf8');
 const version = checkedInCask.match(/^  version "(?<version>\d+\.\d+\.\d+)"$/m)?.groups?.version;
 const checkedInChecksum = checkedInCask.match(/^  sha256 "(?<checksum>[a-f0-9]{64})"$/m)?.groups?.checksum;
 assert.ok(version);
@@ -58,11 +62,11 @@ assert.match(checkedInCask, /app "CodexModelManager\.app"/);
 assert.match(checkedInCask, /user_model_data_preserved_on_uninstall: true/);
 assert.doesNotMatch(checkedInCask, /depends_on formula:/);
 
-const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-model-manager-atomic.'));
-const target = path.join(temporaryDirectory, 'Casks', 'opl-codex-model-manager.rb');
+const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-models-atomic.'));
+const target = path.join(temporaryDirectory, 'Casks', 'opl-codex-models.rb');
 writeAtomically(target, checkedInCask);
 assert.equal(fs.readFileSync(target, 'utf8'), checkedInCask);
-assert.deepEqual(fs.readdirSync(path.dirname(target)), ['opl-codex-model-manager.rb']);
+assert.deepEqual(fs.readdirSync(path.dirname(target)), ['opl-codex-models.rb']);
 fs.rmSync(temporaryDirectory, { recursive: true, force: true });
 
-console.log('Codex Model Manager Cask tests passed.');
+console.log('Codex Models Cask tests passed.');

@@ -1,6 +1,6 @@
 # One Person Lab Homebrew Tap
 
-Install OPL Base, One Person Lab App, OPL Fleet Agent, and Codex Model Manager
+Install OPL Base, One Person Lab App, OPL Fleet Agent, and Codex Models
 from their owner-published releases. This repository is a downstream index;
 [distribution architecture](docs/distribution.md) owns the maintainer boundary.
 
@@ -37,7 +37,7 @@ Independent utilities do not depend on the `opl` Formula:
 ```bash
 brew install --cask opl-fleet-agent
 open -a "OPL Fleet Agent"
-brew install --cask opl-codex-model-manager
+brew install --cask opl-codex-models
 open -a "Codex 模型管理器"
 ```
 
