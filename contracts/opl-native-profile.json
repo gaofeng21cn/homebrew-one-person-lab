@@ -28,7 +28,6 @@
   "verification_commands": [
     "node test/downstream-boundary.test.mjs",
     "node test/stable-distribution.test.mjs",
-    "node test/stable-standard-distribution.test.mjs",
     "git diff --check"
   ]
 }

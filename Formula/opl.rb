@@ -10,8 +10,6 @@ class Opl < Formula
 
   # OPL_HOMEBREW_FORMULA_BOUNDARY_START
   # release_truth_authority: opl_framework_package_manifest
-  # release_set_generation: 26.7.18-r1
-  # release_set_bom_digest: sha256:b73394dd4f1c3d92b9d3cd56fb8cc7000782d3f28d97e091ed90168b1feee146
   # framework_source_head: 0d1f90b8646cbc66953fada15cead239372ac476
   # framework_artifact_ref: ghcr.io/gaofeng21cn/one-person-lab-framework:0.3.3
   # framework_artifact_digest: sha256:3517307677df500b85f97ef330f86e76465b2d9615e3758a851ad21a763cc6bc
@@ -38,7 +36,9 @@ class Opl < Formula
     npm = node_bin/"npm"
     ENV["npm_config_cache"] = buildpath/".npm-cache"
     ENV["npm_config_update_notifier"] = "false"
-    system npm, "install", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    system npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"
+    system npm, "run", "build"
+    system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
     libexec.install Dir["*"]
     (bin/"opl").write_env_script libexec/"bin/opl", PATH: "#{node_bin}:$PATH"
   end

@@ -5,12 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  formulaMetadataFromManifest,
+  formulaMetadataFromArtifact,
   parseGhcrImage,
   renderFormula,
-  validateRemoteManifestBinding,
   writeFormulaAtomically,
-} from '../scripts/sync-formula-from-framework-manifest.mjs';
+} from '../scripts/sync-formula-from-framework-artifact.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -42,14 +41,6 @@ assert.deepEqual(
 );
 assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
 assert.ok(caskFiles.includes('opl-codex-models.rb'), 'the unified OPL Tap must publish Codex Models');
-for (const channelConsumer of [
-  'scripts/sync-formula-from-framework-manifest.mjs',
-]) {
-  const content = read(channelConsumer);
-  assert.match(content, /one-person-lab-manifest(?::|`[^\n]*:)latest-stable|latest-stable/);
-  assert.doesNotMatch(content, /one-person-lab-manifest:latest(?!-stable)/);
-}
-
 for (const cask of ['Casks/one-person-lab.rb']) {
   assert.equal(
     /depends_on formula: "opl"/.test(read(cask)),
@@ -126,188 +117,22 @@ assert.equal(fs.existsSync(path.join(root, '.github/workflows/stable-distributio
 assert.equal(fs.existsSync(path.join(root, 'scripts/prepare-stable-distribution.mjs')), false);
 assert.equal(fs.existsSync(path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs')), false);
 
-const canonicalPackageIds = ['mas', 'mag', 'rca', 'oma', 'obf', 'mas-scholar-skills', 'opl-flow'];
-const releaseSetGeneration = '26.7.13-r4';
 const frameworkSha = '1'.repeat(40);
-const frameworkArtifact = 'ghcr.io/gaofeng21cn/one-person-lab-framework:0.2.1';
 const frameworkArtifactDigest = `sha256:${'4'.repeat(64)}`;
-const packageArtifacts = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
-  package_id: packageId,
-  version: '0.2.0',
-}]));
-const packageMembers = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
-  package_id: packageId,
-  component_id: packageId,
-  component_kind: 'package',
-  version: '0.2.0',
-}]));
-const packageCatalog = Object.fromEntries(canonicalPackageIds.map((packageId) => [packageId, {
-  package_id: packageId,
-  versions: [{ version: '0.2.0' }],
-}]));
-const manifestFixture = {
-  opl_version: '999.999.999',
-  release_set_generation: releaseSetGeneration,
-  release_set: {
-    surface_kind: 'opl_release_set.v2',
-    generation: releaseSetGeneration,
-    bom_status: 'complete',
-    bom_digest: `sha256:${'5'.repeat(64)}`,
-    component_count: 9,
-    components: {
-      base: {
-        component_id: 'opl-base',
-        component_kind: 'base',
-        version: '0.2.1',
-        source_commit: frameworkSha,
-        artifact_ref: frameworkArtifact,
-        artifact_digest: frameworkArtifactDigest,
-        artifact_status: 'published_immutable',
-      },
-      app: {
-        component_id: 'opl-app',
-        component_kind: 'app',
-        version: '26.7.13',
-      },
-      packages: {
-        package_count: 7,
-        members: packageMembers,
-      },
-    },
-  },
-  packages: {
-    framework_core: {
-      version: '0.2.1',
-      artifact: frameworkArtifact,
-      artifact_digest: frameworkArtifactDigest,
-      artifact_status: 'published_immutable',
-      source_git: {
-        repo_url: 'https://github.com/gaofeng21cn/one-person-lab.git',
-        head_sha: frameworkSha,
-      },
-      source_archive: { sha256: '2'.repeat(64) },
-      homebrew_formula: {
-        surface_kind: 'opl_homebrew_formula_projection.v1',
-        formula_name: 'opl',
-        package_name: 'opl',
-        approval_status: 'owner_approved',
-        carrier_scope: 'framework_core_only',
-        version: '0.2.1',
-        source_head: frameworkSha,
-        archive_url: `https://github.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}.tar.gz`,
-        archive_kind: 'immutable_github_commit_archive',
-        sha256_source: 'tap_sync_download_and_hash',
-        tap_generator_role: 'consume_projection_without_inference',
-      },
-    },
-    package_artifacts: packageArtifacts,
-    package_catalog: packageCatalog,
-  },
-};
-const formulaMetadata = formulaMetadataFromManifest(manifestFixture);
-assert.equal(formulaMetadata.formulaName, 'opl');
-assert.equal(formulaMetadata.packageName, 'opl');
+const frameworkArtifact = `ghcr.io/gaofeng21cn/one-person-lab-framework@${frameworkArtifactDigest}`;
+const manifestFixture = { artifactType: 'application/vnd.onepersonlab.framework.v1',
+  annotations: { 'org.opencontainers.image.version':'0.2.1', 'org.opencontainers.image.revision':frameworkSha,
+    'org.opencontainers.image.source':'https://github.com/gaofeng21cn/one-person-lab' },
+  layers:[{mediaType:'application/vnd.onepersonlab.framework.source.v1+gzip', digest:`sha256:${'2'.repeat(64)}`}] };
+const formulaMetadata = formulaMetadataFromArtifact(manifestFixture, frameworkArtifact, frameworkArtifactDigest);
 assert.equal(formulaMetadata.version, '0.2.1');
-assert.equal(formulaMetadata.releaseSetGeneration, releaseSetGeneration);
-assert.equal(
-  formulaMetadata.archiveUrl,
-  `https://github.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}.tar.gz`,
-);
-assert.doesNotThrow(
-  () => formulaMetadataFromManifest({ ...manifestFixture, opl_version: '26.7.10' }),
-  'Formula version must not be compared with the retired manifest.opl_version field',
-);
-assert.throws(
-  () => formulaMetadataFromManifest({
-    ...manifestFixture,
-    packages: {
-      ...manifestFixture.packages,
-      framework_core: {
-        ...manifestFixture.packages.framework_core,
-        homebrew_formula: undefined,
-      },
-    },
-  }),
-  /homebrew_formula projection/,
-);
-assert.throws(
-  () => formulaMetadataFromManifest({
-    ...manifestFixture,
-    packages: {
-      ...manifestFixture.packages,
-      framework_core: {
-        ...manifestFixture.packages.framework_core,
-        homebrew_formula: {
-          ...manifestFixture.packages.framework_core.homebrew_formula,
-          package_name: 'opl-framework',
-        },
-      },
-    },
-  }),
-  /formula_name and package_name must both be opl/,
-);
-assert.throws(
-  () => formulaMetadataFromManifest({
-    ...manifestFixture,
-    packages: {
-      ...manifestFixture.packages,
-      framework_core: {
-        ...manifestFixture.packages.framework_core,
-        homebrew_formula: {
-          ...manifestFixture.packages.framework_core.homebrew_formula,
-          formula_name: undefined,
-        },
-      },
-    },
-  }),
-  /formula_name and package_name must both be opl/,
-);
-assert.throws(
-  () => formulaMetadataFromManifest({
-    ...manifestFixture,
-    packages: {
-      ...manifestFixture.packages,
-      package_catalog: {
-        ...manifestFixture.packages.package_catalog,
-        mas: {
-          ...manifestFixture.packages.package_catalog.mas,
-          homebrew_formula: { formula_name: 'mas' },
-        },
-      },
-    },
-  }),
-  /mas must not declare a Homebrew Formula or Cask/,
-);
-assert.deepEqual(
-  parseGhcrImage(`ghcr.io/gaofeng21cn/one-person-lab-manifest:${releaseSetGeneration}`),
-  {
-    repository: 'gaofeng21cn/one-person-lab-manifest',
-    reference: releaseSetGeneration,
-    referenceKind: 'tag',
-  },
-);
-assert.doesNotThrow(() => validateRemoteManifestBinding({
-  generationReference: releaseSetGeneration,
-  generationDigest: `sha256:${'6'.repeat(64)}`,
-  stableReference: 'latest-stable',
-  stableDigest: `sha256:${'6'.repeat(64)}`,
-  expectedGeneration: releaseSetGeneration,
-  expectedDigest: `sha256:${'6'.repeat(64)}`,
-}));
-assert.throws(() => validateRemoteManifestBinding({
-  generationReference: releaseSetGeneration,
-  generationDigest: `sha256:${'6'.repeat(64)}`,
-  stableReference: 'latest-stable',
-  stableDigest: `sha256:${'7'.repeat(64)}`,
-  expectedGeneration: releaseSetGeneration,
-  expectedDigest: `sha256:${'6'.repeat(64)}`,
-}), /latest-stable does not point to exact Release Set digest/);
+assert.throws(() => formulaMetadataFromArtifact(manifestFixture, frameworkArtifact.replace('one-person-lab-framework','other'), frameworkArtifactDigest), /canonical immutable/);
+assert.throws(() => formulaMetadataFromArtifact({...manifestFixture, layers: []}, frameworkArtifact, frameworkArtifactDigest), /Invalid Framework/);
 const renderedFormula = renderFormula({
   ...formulaMetadata,
   transportSha256: '3'.repeat(64),
 });
 assert.match(renderedFormula, /version "0\.2\.1"/);
-assert.match(renderedFormula, new RegExp(`release_set_generation: ${releaseSetGeneration}`));
 assert.match(renderedFormula, new RegExp(`framework_source_head: ${frameworkSha}`));
 assert.match(renderedFormula, new RegExp(`framework_artifact_digest: ${frameworkArtifactDigest}`));
 assert.match(renderedFormula, new RegExp(`framework_package_archive_sha256: ${'2'.repeat(64)}`));
@@ -331,9 +156,9 @@ assert.match(renderedFormula, /Homebrew 5\.1\.3 does not expose formula_opt_bin/
 assert.doesNotMatch(renderedFormula, /npm = formula_opt_bin/);
 assert.match(renderedFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
 assert.match(renderedFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
-assert.match(renderedFormula, /system npm, "install", "--omit=dev", "--ignore-scripts"/);
-assert.doesNotMatch(renderedFormula, /system npm, "prune"/);
-assert.doesNotMatch(renderedFormula, /system npm, "ci"/);
+assert.match(renderedFormula, /system npm, "ci", "--ignore-scripts"/);
+assert.match(renderedFormula, /system npm, "prune", "--omit=dev", "--ignore-scripts"/);
+assert.match(renderedFormula, /system npm, "run", "build"/);
 assert.match(renderedFormula, /def caveats/);
 assert.match(renderedFormula, /opl install --headless --skip-packages/);
 assert.doesNotMatch(renderedFormula, /system .*"opl", "install"/);
@@ -365,7 +190,7 @@ assert.match(
 );
 assert.doesNotMatch(
   read('.github/workflows/sync-from-app-releases.yml'),
-  /sync-formula-from-framework-manifest/,
+  /sync-formula-from-framework-artifact/,
 );
 
 for (const [cask, channel, packageKind] of [
@@ -409,7 +234,7 @@ for (const [cask, channel, packageKind] of [
 
 for (const file of [
   'scripts/sync-cask-from-release.mjs',
-  'scripts/sync-formula-from-framework-manifest.mjs',
+  'scripts/sync-formula-from-framework-artifact.mjs',
   'Casks/one-person-lab.rb',
   'Casks/one-person-lab-full.rb',
   'Casks/opl-fleet-agent.rb',
@@ -726,32 +551,6 @@ const noNightlyStrict = spawnSync(process.execPath, [
 assert.notEqual(noNightlyStrict.status, 0);
 assert.match(noNightlyStrict.stderr, /No published nightly release found/);
 
-const projectionTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-projection-failure-'));
-const legacyManifestPath = path.join(projectionTmp, 'legacy-manifest.json');
-const sentinelFormulaPath = path.join(projectionTmp, 'opl.rb');
-fs.writeFileSync(legacyManifestPath, JSON.stringify({
-  ...manifestFixture,
-  packages: {
-    ...manifestFixture.packages,
-    framework_core: {
-      ...manifestFixture.packages.framework_core,
-      package_name: 'opl-framework-shared',
-      homebrew_formula: undefined,
-    },
-  },
-}));
-fs.writeFileSync(sentinelFormulaPath, 'sentinel\n');
-const legacyFormulaSync = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-formula-from-framework-manifest.mjs'),
-  '--manifest-file',
-  legacyManifestPath,
-  '--formula-path',
-  sentinelFormulaPath,
-], { encoding: 'utf8' });
-assert.notEqual(legacyFormulaSync.status, 0);
-assert.match(legacyFormulaSync.stderr, /homebrew_formula projection/);
-assert.equal(fs.readFileSync(sentinelFormulaPath, 'utf8'), 'sentinel\n');
-
 const failureTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-boundary-failure-'));
 fs.mkdirSync(path.join(failureTmp, 'Casks'));
 const failureBin = writeMockGh(failureTmp);
@@ -818,11 +617,7 @@ assert.match(usage.stderr, /Unknown option: --wat/);
 assert.doesNotMatch(usage.stderr, /App release operator\/authority/);
 
 const packageSpecificFormula = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-formula-from-framework-manifest.mjs'),
-  '--manifest-file',
-  legacyManifestPath,
-  '--formula-path',
-  path.join(projectionTmp, 'mas.rb'),
-], { encoding: 'utf8' });
+  path.join(root, 'scripts/sync-formula-from-framework-artifact.mjs'), '--artifact-ref', frameworkArtifact,
+  '--formula-path', '/tmp/mas.rb'], { encoding:'utf8' });
 assert.notEqual(packageSpecificFormula.status, 0);
 assert.match(packageSpecificFormula.stderr, /only allowed Formula output is opl\.rb/);

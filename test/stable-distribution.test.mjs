@@ -15,7 +15,7 @@ for (const retiredPath of [
   assert.equal(exists(retiredPath), false, `${retiredPath} must stay retired`);
 }
 
-const standardWorkflow = read('.github/workflows/stable-standard-distribution.yml');
+const frameworkWorkflow = read('.github/workflows/sync-framework-artifact.yml');
 const nightlyWorkflow = read('.github/workflows/sync-from-app-releases.yml');
 const tapCheck = read('.github/workflows/tap-check.yml');
 
@@ -24,9 +24,6 @@ assert.match(tapCheck, /distribution-qualification:/);
 assert.match(tapCheck, /if: github\.event_name == 'workflow_dispatch'/);
 assert.match(tapCheck, /brew audit --strict --online/);
 
-assert.match(standardWorkflow, /git add Formula\/opl\.rb Casks\/one-person-lab\.rb/);
-assert.doesNotMatch(standardWorkflow, /git add[^\n]*one-person-lab-full/);
-assert.match(standardWorkflow, /git diff --quiet -- Casks\/one-person-lab-full\.rb Casks\/one-person-lab-nightly\.rb Casks\/opl-fleet-agent\.rb Casks\/opl-codex-models\.rb/);
 
 assert.match(nightlyWorkflow, /git add Casks\/one-person-lab-nightly\.rb/);
 assert.doesNotMatch(nightlyWorkflow, /git add[^\n]*one-person-lab-full/);
@@ -44,3 +41,6 @@ for (const workflow of [tapCheck, nightlyWorkflow]) {
 
 
 console.log('Stable distribution authority boundary tests passed.');
+
+assert.match(frameworkWorkflow, /git add Formula\/opl\.rb/);
+assert.doesNotMatch(frameworkWorkflow, /git add.*Casks/);

@@ -33,14 +33,15 @@ casks, workflows, and boundary tests.
 
 | Surface | Writer | Inputs |
 | --- | --- | --- |
-| Formula plus Standard cask | `stable-standard-distribution.yml` | Exact App promotion session, App/Shell/Framework cohort, Release Set generation and digest, passed Standard VM evidence |
+| Framework Formula | `sync-framework-artifact.yml` | Immutable Framework OCI artifact digest |
+| Standard cask | App protected Homebrew follower | Published Standard App artifact and exact Cask CAS |
 | Full cask | App protected `append_full` publisher | Qualified Full DMG and embedded Base bytes |
 | Nightly cask | `sync-from-app-releases.yml` | Eligible immutable App Nightly prerelease |
 | Fleet Agent cask | `sync-fleet-agent-release.yml` | Exact Fleet Agent release |
 | Codex Models cask | `sync-codex-models-release.yml` | Exact model-manager release |
 
-Tap workflows serialize writes with `opl-homebrew-tap-write`. Standard writes
-Formula and Standard together and leaves other casks unchanged. Full is an
+Tap workflows serialize writes with `opl-homebrew-tap-write`. Framework Formula
+and App Casks advance independently; neither requires the other to advance. Full is an
 App-owned additive publication; this repository validates and indexes it,
 without another Full publisher. Scheduled synchronization writes Nightly only.
 Its Stable/Full modes use temporary diagnostics and cannot publish.
@@ -52,13 +53,11 @@ the no-release result alone does not prove that the token is absent.
 
 ## Immutable Evidence
 
-Standard distribution verifies one immutable Release Set generation against
-the digest at `ghcr.io/gaofeng21cn/one-person-lab-manifest:latest-stable`. It
-generates Formula solely from the owner-approved
-`framework_core.homebrew_formula` projection and hashes downloaded transport
-bytes. The atomic distribution commit receives the immutable
-`stable-standard-distribution/v<version>` tag carrying
-`opl_stable_distribution_receipt.v3`.
+Formula generation reads the independent Framework OCI artifact by digest. Its
+version, source commit and source layer identify Framework alone. The generator
+hashes the pinned GitHub source archive used by Homebrew and builds the CLI from
+that source. App and Package versions are not inputs. App Casks use the App
+owner's publication follower independently.
 
 Casks mirror exact owner-published asset names, URLs, and digests. Product
 versioning belongs to those releases; the Tap does not rewrite versions or
@@ -73,7 +72,6 @@ Run the source boundary and affected distribution tests before committing:
 ```bash
 node test/downstream-boundary.test.mjs
 node test/stable-distribution.test.mjs
-node test/stable-standard-distribution.test.mjs
 node test/fleet-agent-cask.test.mjs
 node test/codex-models-cask.test.mjs
 git diff --check

@@ -92,7 +92,7 @@ jobs:
           done
           if [ "$write_root" != "$GITHUB_WORKSPACE" ]; then
             git diff --no-index -- Casks "$write_root/Casks" || test $? -eq 1
-            echo "Stable diagnostic completed without modifying the tap checkout. Formal Standard writes require stable-standard-distribution.yml; formal Full writes belong to the App protected append_full publisher."
+            echo "Stable diagnostic completed without modifying the tap checkout. Formal Standard writes belong to the App protected Homebrew follower; formal Full writes belong to the App protected append_full publisher."
           fi
 
       - name: Validate tap
