@@ -12,9 +12,9 @@ cask "one-person-lab-nightly" do
   end
 
   conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
-  depends_on formula: "opl"
-  depends_on macos: :monterey
   depends_on arch: :arm64
+  depends_on formula: "opl"
+  depends_on macos: :ventura
 
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: nightly

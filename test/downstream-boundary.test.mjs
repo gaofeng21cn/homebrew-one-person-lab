@@ -53,7 +53,7 @@ for (const cask of [
   'Casks/one-person-lab-full.rb',
   'Casks/one-person-lab-nightly.rb',
 ]) {
-  assert.match(read(cask), /depends_on macos: :monterey/);
+  assert.match(read(cask), /depends_on macos: :ventura/);
   assert.doesNotMatch(read(cask), /depends_on macos: :big_sur/);
 }
 const fullCask = read('Casks/one-person-lab-full.rb');
@@ -471,7 +471,7 @@ const nightlySuccess = spawnSync(process.execPath, [
 assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
 const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
 assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
-assert.match(generatedNightly, /depends_on macos: :monterey/);
+assert.match(generatedNightly, /depends_on macos: :ventura/);
 assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
 assert.match(generatedNightly, /# package_specific_formula_allowed: false/);
 assert.match(generatedNightly, /# package_specific_cask_allowed: false/);
