@@ -7,6 +7,11 @@ cask "opl-fleet-agent" do
   desc "Local menu bar monitor for Codex token throughput"
   homepage "https://github.com/gaofeng21cn/opl-fleet-agent"
 
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
   auto_updates true
   depends_on macos: :ventura
 
