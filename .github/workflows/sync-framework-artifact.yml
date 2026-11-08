@@ -26,6 +26,8 @@ jobs:
         run: |
           node test/downstream-boundary.test.mjs
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
+          cp Formula/opl.rb "$(brew --repository "$GITHUB_REPOSITORY")/Formula/opl.rb"
+          brew trust --formula "$GITHUB_REPOSITORY/opl"
           brew style "$GITHUB_REPOSITORY/opl"
           brew audit --strict --online "$GITHUB_REPOSITORY/opl"
       - name: Publish Formula
