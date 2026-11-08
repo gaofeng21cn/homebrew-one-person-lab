@@ -114,7 +114,7 @@ export function renderFormula(metadata) {
   # OPL_HOMEBREW_FORMULA_BOUNDARY_START
   # release_truth_authority: opl_framework_package_manifest
   # framework_source_head: ${metadata.headSha}
-  # framework_artifact_ref: ${metadata.artifactRef}
+  # framework_artifact_ref: ghcr.io/gaofeng21cn/one-person-lab-framework:${metadata.version}
   # framework_artifact_digest: ${metadata.artifactDigest}
   # framework_package_archive_sha256: ${metadata.packageSha256}
   # homebrew_transport_archive_sha256: ${metadata.transportSha256}
