@@ -1,20 +1,20 @@
 class Opl < Formula
   desc "Headless OPL Framework and CLI"
   homepage "https://github.com/gaofeng21cn/one-person-lab"
-  url "https://github.com/gaofeng21cn/one-person-lab/archive/76534ea26ae480c0fb17215e4c04844e06f575ec.tar.gz"
-  version "0.3.12"
-  sha256 "0682cd79d883edbb2259013b02d4d77ded9195c0065be5de5deef46daeaf2528"
+  url "https://github.com/gaofeng21cn/one-person-lab/archive/a3b330c0e4494f2845624265d28c3a26233c49c6.tar.gz"
+  version "0.3.13"
+  sha256 "78c2f4a09728e6a4fd02f6c922689d87527642eb3ea284f80179fed8eb9b1754"
   license "Apache-2.0"
 
   depends_on "node@22"
 
   # OPL_HOMEBREW_FORMULA_BOUNDARY_START
   # release_truth_authority: opl_framework_package_manifest
-  # framework_source_head: 76534ea26ae480c0fb17215e4c04844e06f575ec
-  # framework_artifact_ref: ghcr.io/gaofeng21cn/one-person-lab-framework:0.3.12
-  # framework_artifact_digest: sha256:e2d904d905d3787e3c8f0272b116b28ea201c37fb73944e57a56bb19ac4ed75f
-  # framework_package_archive_sha256: cdae89fbefc10a99c8171057a719fa88ec95b61a44c1a12c8d579287467f8197
-  # homebrew_transport_archive_sha256: 0682cd79d883edbb2259013b02d4d77ded9195c0065be5de5deef46daeaf2528
+  # framework_source_head: a3b330c0e4494f2845624265d28c3a26233c49c6
+  # framework_artifact_ref: ghcr.io/gaofeng21cn/one-person-lab-framework:0.3.13
+  # framework_artifact_digest: sha256:cd4791605c8edf5f1026d36224d13c28d63ffc0bc8df0291e361bb1c3a1e3d3c
+  # framework_package_archive_sha256: fb6c4d06f1d48aec12ece12a47202e0107041145daaeb6fee9efa081fa55b7d5
+  # homebrew_transport_archive_sha256: 78c2f4a09728e6a4fd02f6c922689d87527642eb3ea284f80179fed8eb9b1754
   # formula_identity: opl
   # internal_npm_package: opl-framework
   # internal_installation_implementation_only: true
