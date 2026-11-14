@@ -84,13 +84,16 @@ export function formulaMetadataFromArtifact(manifest, artifactRef, artifactDiges
 
 export async function readFrameworkArtifact(artifactRef) {
   const ref = parseGhcrImage(artifactRef);
-  if (ref.repository !== 'gaofeng21cn/one-person-lab-framework' || ref.referenceKind !== 'digest') {
+  if (ref.repository !== 'gaofeng21cn/one-person-lab-framework'
+    || (ref.referenceKind !== 'digest' && ref.reference !== 'latest-stable')) {
     throw new Error('Formula requires the canonical immutable Framework artifact.');
   }
   const auth = await registryAuthorization(ref.repository);
   const result = await readOciManifest(ref.repository, ref.reference, auth);
-  if (result.digest !== ref.reference) throw new Error('Framework artifact digest mismatch.');
-  return formulaMetadataFromArtifact(result.payload, artifactRef, result.digest);
+  if (ref.referenceKind === 'digest' && result.digest !== ref.reference) throw new Error('Framework artifact digest mismatch.');
+  // Resolve the channel once; every generated field refers to those immutable bytes.
+  const immutableRef = `ghcr.io/${ref.repository}@${result.digest}`;
+  return formulaMetadataFromArtifact(result.payload, immutableRef, result.digest);
 }
 
 async function sha256OfUrl(url) {
