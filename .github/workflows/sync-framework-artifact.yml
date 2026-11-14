@@ -1,10 +1,12 @@
 name: Sync Framework Formula
 on:
+  schedule:
+    - cron: '13 2 * * *'
   workflow_dispatch:
     inputs:
       artifact_digest:
         description: Published Framework OCI manifest digest (sha256)
-        required: true
+        required: false
         type: string
 permissions:
   contents: write
@@ -19,7 +21,12 @@ jobs:
       - name: Generate Formula from independent Framework artifact
         env:
           ARTIFACT_DIGEST: ${{ inputs.artifact_digest }}
-        run: node scripts/sync-formula-from-framework-artifact.mjs --artifact-ref "ghcr.io/gaofeng21cn/one-person-lab-framework@$ARTIFACT_DIGEST"
+        run: |
+          if [ -n "$ARTIFACT_DIGEST" ]; then
+            node scripts/sync-formula-from-framework-artifact.mjs --artifact-ref "ghcr.io/gaofeng21cn/one-person-lab-framework@$ARTIFACT_DIGEST"
+          else
+            node scripts/sync-formula-from-framework-artifact.mjs --artifact-ref ghcr.io/gaofeng21cn/one-person-lab-framework:latest-stable
+          fi
       - name: Validate Formula
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
