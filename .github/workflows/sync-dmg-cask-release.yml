@@ -1,10 +1,18 @@
-name: Sync Codex Models Release
+name: Sync DMG Cask Release
 
 on:
   workflow_dispatch:
     inputs:
+      target:
+        description: Target DMG Cask to sync
+        required: true
+        default: opl-codex-models
+        type: choice
+        options:
+          - opl-codex-models
+          - opl-fleet-agent
       release_tag:
-        description: Optional exact Codex Models release tag, for example v0.4.1
+        description: Optional exact release tag, for example v0.4.5 or v0.2.50
         required: false
         type: string
   schedule:
@@ -20,56 +28,68 @@ concurrency:
 jobs:
   sync:
     runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        target: ${{ fromJSON(github.event_name == 'workflow_dispatch' && format('["{0}"]', inputs.target || 'opl-codex-models') || '["opl-codex-models", "opl-fleet-agent"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Sync Cask from Codex Models release
+      - name: Sync Cask from release
         env:
           GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ matrix.target }}
           RELEASE_TAG: ${{ inputs.release_tag }}
         shell: bash
         run: |
           set -euo pipefail
           if [ -n "$RELEASE_TAG" ]; then
-            node scripts/sync-codex-models-cask.mjs --release-tag "$RELEASE_TAG"
+            node scripts/sync-dmg-cask.mjs --target "$TARGET" --release-tag "$RELEASE_TAG"
           else
-            node scripts/sync-codex-models-cask.mjs
+            node scripts/sync-dmg-cask.mjs --target "$TARGET"
           fi
 
-      - name: Validate Codex Models projection
+      - name: Validate Cask projection
         env:
           HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+          TARGET: ${{ matrix.target }}
         shell: bash
         run: |
           set -euo pipefail
-          node test/codex-models-cask.test.mjs
+          node test/dmg-cask-sync.test.mjs
           node test/downstream-boundary.test.mjs
           brew tap "$GITHUB_REPOSITORY" "$GITHUB_WORKSPACE"
           tap_root="$(brew --repository "$GITHUB_REPOSITORY")"
-          cp "$GITHUB_WORKSPACE/Casks/opl-codex-models.rb" "$tap_root/Casks/opl-codex-models.rb"
+          cp "$GITHUB_WORKSPACE/Casks/${TARGET}.rb" "$tap_root/Casks/${TARGET}.rb"
           if brew help trust >/dev/null 2>&1; then
             brew trust "$GITHUB_REPOSITORY"
           fi
-          brew style --cask "$GITHUB_REPOSITORY/opl-codex-models"
-          brew audit --cask --online "$GITHUB_REPOSITORY/opl-codex-models"
+          brew style --cask "$GITHUB_REPOSITORY/${TARGET}"
+          brew audit --cask --online "$GITHUB_REPOSITORY/${TARGET}"
 
-      - name: Commit Codex Models Cask
+      - name: Commit Cask update
         id: commit
+        env:
+          TARGET: ${{ matrix.target }}
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- Casks/opl-codex-models.rb; then
-            echo "No Codex Models Cask update."
+          cask_file="Casks/${TARGET}.rb"
+          if git diff --quiet -- "$cask_file"; then
+            echo "No ${TARGET} Cask update."
             exit 0
           fi
-          git diff --quiet -- . ':(exclude)Casks/opl-codex-models.rb' || {
-            echo "::error::Codex Models sync may modify only Casks/opl-codex-models.rb."
+          git diff --quiet -- . ":(exclude)${cask_file}" || {
+            echo "::error::${TARGET} sync may modify only ${cask_file}."
             exit 1
           }
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Casks/opl-codex-models.rb
-          git commit -m "Sync Codex Models Cask from release"
+          git add "$cask_file"
+          git commit -m "Sync ${TARGET} Cask from release"
+          git fetch origin main
+          git rebase FETCH_HEAD
           git push origin HEAD:main
           echo "tap_commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 

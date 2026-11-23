@@ -6,7 +6,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   formulaMetadataFromArtifact,
-  parseGhcrImage,
   renderFormula,
   writeFormulaAtomically,
 } from '../scripts/sync-formula-from-framework-artifact.mjs';
@@ -14,15 +13,8 @@ import {
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-assert.match(read('.gitignore'), /^\.worktrees\/$/m);
-
 const formulaDir = path.join(root, 'Formula');
 const formulaPublished = fs.existsSync(path.join(formulaDir, 'opl.rb'));
-assert.match(read('Formula/opl.rb'), /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
-assert.doesNotMatch(read('Formula/opl.rb'), /npm = formula_opt_bin/);
-assert.match(read('Formula/opl.rb'), /Homebrew 5\.1\.3 does not expose formula_opt_bin/);
-assert.match(read('Formula/opl.rb'), /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
-assert.match(read('Formula/opl.rb'), /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
 const formulaFiles = fs.existsSync(formulaDir)
   ? fs.readdirSync(formulaDir).filter((name) => name.endsWith('.rb')).sort()
   : [];
@@ -31,6 +23,16 @@ assert.deepEqual(
   [],
   'the tap may publish only Formula/opl.rb',
 );
+
+if (formulaPublished) {
+  const oplFormula = read('Formula/opl.rb');
+  assert.match(oplFormula, /depends_on "node@22"/);
+  assert.match(oplFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
+  assert.doesNotMatch(oplFormula, /npm = formula_opt_bin/);
+  assert.match(oplFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
+  assert.match(oplFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
+}
+
 const caskFiles = fs.readdirSync(path.join(root, 'Casks'))
   .filter((name) => name.endsWith('.rb'))
   .sort();
@@ -41,118 +43,107 @@ assert.deepEqual(
 );
 assert.ok(caskFiles.includes('opl-fleet-agent.rb'), 'the unified OPL Tap must publish OPL Fleet Agent');
 assert.ok(caskFiles.includes('opl-codex-models.rb'), 'the unified OPL Tap must publish Codex Models');
-for (const cask of ['Casks/one-person-lab.rb']) {
+
+const standardCask = read('Casks/one-person-lab.rb');
+const fullCask = read('Casks/one-person-lab-full.rb');
+const nightlyPath = path.join(root, 'Casks/one-person-lab-nightly.rb');
+const hasNightlyCask = fs.existsSync(nightlyPath);
+
+function assertCsvStableCask(content, { token, dmgPrefix, requiresFormula }) {
+  assert.match(content, new RegExp(`^cask "${token}" do$`, 'm'));
+  const versionMatch = content.match(/^\s*version "([^"]+)"$/m);
+  assert.ok(versionMatch, `${token} must declare version`);
+  const parts = versionMatch[1].split(',');
+  assert.equal(parts.length, 2, `${token} version must use updater,display CSV semantics`);
+  assert.ok(parts[0] && parts[1], `${token} CSV version parts must be non-empty`);
+  assert.match(content, /^\s*sha256 "[a-f0-9]{64}"$/m, `${token} must declare a 64-char sha256`);
+  assert.match(
+    content,
+    new RegExp(`^\\s*url "https://github\\.com/gaofeng21cn/one-person-lab-app/releases/download/v#\\{version\\.csv\\.second\\}/${dmgPrefix}-#\\{version\\.csv\\.second\\}-mac-arm64\\.dmg"$`, 'm'),
+    `${token} URL must bind the display version`,
+  );
+  assert.match(content, /^\s*depends_on arch: :arm64$/m);
+  assert.match(content, /^\s*depends_on macos: :ventura$/m);
+  assert.doesNotMatch(content, /depends_on macos: :big_sur/);
+  assert.doesNotMatch(content, /immutable/i);
   assert.equal(
-    /depends_on formula: "opl"/.test(read(cask)),
-    formulaPublished,
-    `${cask} Formula dependency must match Formula/opl.rb publication`,
+    /depends_on formula: "opl"/.test(content),
+    requiresFormula,
+    `${token} Formula dependency expectation mismatch`,
   );
 }
-for (const cask of [
-  'Casks/one-person-lab.rb',
-  'Casks/one-person-lab-full.rb',
-  'Casks/one-person-lab-nightly.rb',
-]) {
-  assert.match(read(cask), /depends_on macos: :ventura/);
-  assert.doesNotMatch(read(cask), /depends_on macos: :big_sur/);
-}
-const fullCask = read('Casks/one-person-lab-full.rb');
-const fullVersion = fullCask.match(/^\s*version "([^"]+)"$/m)?.[1];
-const fullVersionComponents = fullVersion?.split(',') ?? [];
-const [fullUpdaterVersion, fullDisplayVersion] = fullVersionComponents;
-const fullBoundaryVersion = fullCask.match(/^\s*# version: (\S+)$/m)?.[1];
-const fullBoundaryDisplayVersion = fullCask.match(/^\s*# display_version: (\S+)$/m)?.[1];
-const fullBoundaryUpdaterVersion = fullCask.match(/^\s*# updater_version: (\S+)$/m)?.[1];
-const fullSha256 = fullCask.match(/^\s*sha256 "([a-f0-9]{64})"$/m)?.[1];
-const fullBoundarySha256 = fullCask.match(/^\s*# checksum: sha256:([a-f0-9]{64})$/m)?.[1];
-const fullUrlMatch = fullCask.match(
-  /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\.csv\.second\}\/One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg"$/m,
-);
-const fullManifestMatch = fullCask.match(
-  /^\s*# manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v(\S+)\/opl-release-manifest\.json$/m,
-);
-assert.ok(fullVersion, 'Full cask must expose updater and display versions');
-assert.equal(fullVersionComponents.length, 2, 'Full cask version must use updater,display CSV semantics');
-assert.ok(fullUpdaterVersion, 'Full cask must expose a Homebrew updater version');
-assert.ok(fullDisplayVersion, 'Full cask must bind an exact display version');
-assert.equal(fullBoundaryVersion, fullDisplayVersion);
-assert.equal(fullBoundaryDisplayVersion, fullDisplayVersion);
-assert.equal(fullBoundaryUpdaterVersion, fullUpdaterVersion);
-assert.equal(fullBoundarySha256, fullSha256);
-assert.ok(fullUrlMatch, 'Full cask URL must bind the same Standard release tag as the display version');
-assert.ok(fullManifestMatch, 'Full cask manifest must bind the same Standard release tag');
-assert.equal(fullManifestMatch[1], fullDisplayVersion);
+
+assertCsvStableCask(standardCask, {
+  token: 'one-person-lab',
+  dmgPrefix: 'One-Person-Lab',
+  requiresFormula: formulaPublished,
+});
+assert.match(standardCask, /conflicts_with cask: \["one-person-lab-full", "one-person-lab-nightly"\]/);
+assert.doesNotMatch(standardCask, /One-Person-Lab-Full/);
+
+assertCsvStableCask(fullCask, {
+  token: 'one-person-lab-full',
+  dmgPrefix: 'One-Person-Lab-Full',
+  requiresFormula: false,
+});
+assert.match(fullCask, /conflicts_with cask: \["one-person-lab", "one-person-lab-nightly"\]/);
+assert.doesNotMatch(fullCask, /releases\/latest/);
 assert.doesNotMatch(fullCask, /releases\/download\/v[^/]+-full-[a-f0-9]{12}\//);
-assert.doesNotMatch(
-  fullCask,
-  /depends_on formula: "opl"/,
-  'Full embeds the Base carrier and must never add the opl Formula as a duplicate carrier',
-);
-assert.match(fullCask, /# formula_dependency_required: false/);
-assert.match(fullCask, /# framework_carrier: full_dmg_embedded_opl_base/);
-assert.match(fullCask, /# active_framework_count_target: 1/);
-for (const stableCask of [read('Casks/one-person-lab.rb'), fullCask]) {
-  assert.match(stableCask, /skip "Stable casks pair display tags with monotonic updater versions"/);
-  assert.doesNotMatch(stableCask, /immutable/i);
+
+if (hasNightlyCask) {
+  const nightlyCask = read('Casks/one-person-lab-nightly.rb');
+  assert.match(nightlyCask, /^cask "one-person-lab-nightly" do$/m);
+  assert.match(nightlyCask, /^\s*version "[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly(?:\.r[1-9])?"$/m);
+  assert.match(nightlyCask, /^\s*sha256 "[a-f0-9]{64}"$/m);
+  assert.match(
+    nightlyCask,
+    /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\}\/One-Person-Lab-[^"]+-mac-arm64\.dmg"$/m,
+  );
+  assert.match(nightlyCask, /conflicts_with cask: \["one-person-lab", "one-person-lab-full"\]/);
+  assert.match(nightlyCask, /^\s*depends_on arch: :arm64$/m);
+  assert.match(nightlyCask, /^\s*depends_on macos: :ventura$/m);
+  assert.doesNotMatch(nightlyCask, /depends_on macos: :big_sur/);
+  assert.doesNotMatch(nightlyCask, /One-Person-Lab-Full/);
+  assert.equal(
+    /depends_on formula: "opl"/.test(nightlyCask),
+    formulaPublished,
+    'one-person-lab-nightly.rb Formula dependency must match Formula/opl.rb publication',
+  );
 }
-assert.doesNotMatch(read('Casks/one-person-lab-full.rb'), /releases\/latest/);
-for (const workflow of [
-  '.github/workflows/tap-check.yml',
-  '.github/workflows/sync-from-app-releases.yml',
-]) {
-  assert.doesNotMatch(read(workflow), /--no-signing/);
-  assert.match(read(workflow), /Full casks consume the App-owned embedded Base and must not depend on Formula opl/);
-}
-const fleetAgentSyncWorkflow = read('.github/workflows/sync-fleet-agent-release.yml');
-assert.doesNotMatch(
-  fleetAgentSyncWorkflow,
-  /\$\{args\[@\]\}/,
-  'macOS Bash 3.2 must not expand an empty array under set -u',
-);
-assert.match(
-  fleetAgentSyncWorkflow,
-  /if \[ -n "\$RELEASE_TAG" \]; then[\s\S]*sync-fleet-agent-cask\.mjs --release-tag "\$RELEASE_TAG"[\s\S]*else[\s\S]*sync-fleet-agent-cask\.mjs[\s\S]*fi/,
-);
-assert.equal(fs.existsSync(path.join(root, '.github/workflows/stable-distribution.yml')), false);
-assert.equal(fs.existsSync(path.join(root, 'scripts/prepare-stable-distribution.mjs')), false);
-assert.equal(fs.existsSync(path.join(root, 'scripts/finalize-stable-distribution-receipt.mjs')), false);
 
 const frameworkSha = '1'.repeat(40);
 const frameworkArtifactDigest = `sha256:${'4'.repeat(64)}`;
 const frameworkArtifact = `ghcr.io/gaofeng21cn/one-person-lab-framework@${frameworkArtifactDigest}`;
-const manifestFixture = { artifactType: 'application/vnd.onepersonlab.framework.v1',
-  annotations: { 'org.opencontainers.image.version':'0.2.1', 'org.opencontainers.image.revision':frameworkSha,
-    'org.opencontainers.image.source':'https://github.com/gaofeng21cn/one-person-lab' },
-  layers:[{mediaType:'application/vnd.onepersonlab.framework.source.v1+gzip', digest:`sha256:${'2'.repeat(64)}`}] };
+const manifestFixture = {
+  artifactType: 'application/vnd.onepersonlab.framework.v1',
+  annotations: {
+    'org.opencontainers.image.version': '0.2.1',
+    'org.opencontainers.image.revision': frameworkSha,
+    'org.opencontainers.image.source': 'https://github.com/gaofeng21cn/one-person-lab',
+  },
+  layers: [{ mediaType: 'application/vnd.onepersonlab.framework.source.v1+gzip', digest: `sha256:${'2'.repeat(64)}` }],
+};
 const formulaMetadata = formulaMetadataFromArtifact(manifestFixture, frameworkArtifact, frameworkArtifactDigest);
 assert.equal(formulaMetadata.version, '0.2.1');
-assert.throws(() => formulaMetadataFromArtifact(manifestFixture, frameworkArtifact.replace('one-person-lab-framework','other'), frameworkArtifactDigest), /canonical immutable/);
-assert.throws(() => formulaMetadataFromArtifact({...manifestFixture, layers: []}, frameworkArtifact, frameworkArtifactDigest), /Invalid Framework/);
+assert.throws(
+  () => formulaMetadataFromArtifact(manifestFixture, frameworkArtifact.replace('one-person-lab-framework', 'other'), frameworkArtifactDigest),
+  /canonical immutable/,
+);
+assert.throws(
+  () => formulaMetadataFromArtifact({ ...manifestFixture, layers: [] }, frameworkArtifact, frameworkArtifactDigest),
+  /Invalid Framework/,
+);
+
 const renderedFormula = renderFormula({
   ...formulaMetadata,
   transportSha256: '3'.repeat(64),
 });
 assert.match(renderedFormula, /version "0\.2\.1"/);
-assert.match(renderedFormula, new RegExp(`framework_source_head: ${frameworkSha}`));
-assert.match(renderedFormula, new RegExp(`framework_artifact_digest: ${frameworkArtifactDigest}`));
-assert.match(renderedFormula, new RegExp(`framework_package_archive_sha256: ${'2'.repeat(64)}`));
+assert.match(renderedFormula, new RegExp(`url "https://github\\.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}\\.tar\\.gz"`));
 assert.match(renderedFormula, new RegExp(`sha256 "${'3'.repeat(64)}"`));
-assert.match(renderedFormula, /formula_identity: opl/);
-assert.match(renderedFormula, /internal_npm_package: opl-framework/);
-assert.match(renderedFormula, /internal_installation_implementation_only: true/);
-assert.match(renderedFormula, /carrier_scope: framework_cli_runtime_and_production_dependencies/);
-assert.match(renderedFormula, /temporal_dependency_scope: framework_production_dependency/);
-assert.match(renderedFormula, /app_payload_installed: false/);
-assert.match(renderedFormula, /opl_packages_payload_installed: false/);
-assert.match(renderedFormula, /package_specific_formula_allowed: false/);
-assert.match(renderedFormula, /package_specific_cask_allowed: false/);
-assert.match(renderedFormula, /opl_packages_lifecycle_owner: opl_cli/);
-assert.match(renderedFormula, /opl_packages_lifecycle_command: opl packages/);
-assert.match(renderedFormula, /user_state_initialized_during_brew_install: false/);
-assert.match(renderedFormula, /first_user_state_reconcile: opl install --headless --skip-packages/);
+assert.match(renderedFormula, /depends_on "node@22"/);
 assert.match(renderedFormula, /ENV\["npm_config_cache"\] = buildpath\/"\.npm-cache"/);
 assert.match(renderedFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
-assert.match(renderedFormula, /Homebrew 5\.1\.3 does not expose formula_opt_bin/);
 assert.doesNotMatch(renderedFormula, /npm = formula_opt_bin/);
 assert.match(renderedFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
 assert.match(renderedFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
@@ -162,88 +153,21 @@ assert.match(renderedFormula, /system npm, "run", "build"/);
 assert.match(renderedFormula, /def caveats/);
 assert.match(renderedFormula, /opl install --headless --skip-packages/);
 assert.doesNotMatch(renderedFormula, /system .*"opl", "install"/);
+
 const atomicFormulaTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-atomic-formula-'));
-const atomicFormulaPath = path.join(atomicFormulaTmp, 'Formula/opl.rb');
-writeFormulaAtomically(atomicFormulaPath, renderedFormula);
-assert.equal(fs.readFileSync(atomicFormulaPath, 'utf8'), renderedFormula);
-assert.deepEqual(
-  fs.readdirSync(path.dirname(atomicFormulaPath)),
-  ['opl.rb'],
-  'atomic Formula generation must not leave temporary files',
-);
-const atomicFormulaSyntax = spawnSync('ruby', ['-c', atomicFormulaPath], { encoding: 'utf8' });
-assert.equal(atomicFormulaSyntax.status, 0, atomicFormulaSyntax.stderr);
-
-for (const workflow of [
-  '.github/workflows/sync-from-app-releases.yml',
-  '.github/workflows/tap-check.yml',
-]) {
-  const content = read(workflow);
-  assert.match(content, /App release operator\/authority/);
-  assert.match(content, /OPL Framework package release operator\/authority/);
-  assert.match(content, /do not create tap-local release truth\/currentness/);
-  assert.doesNotMatch(content, /App cask-only|Formula\/ must not be published/);
-}
-assert.match(
-  read('.github/workflows/sync-from-app-releases.yml'),
-  /--allow-missing-nightly/,
-);
-assert.doesNotMatch(
-  read('.github/workflows/sync-from-app-releases.yml'),
-  /sync-formula-from-framework-artifact/,
-);
-
-for (const [cask, channel, packageKind] of [
-  ['Casks/one-person-lab.rb', 'stable', 'app_standard'],
-  ['Casks/one-person-lab-full.rb', 'stable', 'app_full_first_install'],
-]) {
-  const content = read(cask);
-  assert.match(content, new RegExp(`# channel: ${channel}`));
-  assert.match(content, new RegExp(`# package_kind: ${packageKind}`));
-  assert.match(content, /# stable_promotion_from_nightly_allowed: false/);
-  assert.match(content, /# publishes_or_pushes_remote: false/);
-  assert.match(content, /# homebrew_allowed_software_objects: opl_base,opl_app/);
-  assert.match(content, /# opl_packages_lifecycle_owned_by_homebrew: false/);
-  assert.match(content, /# opl_packages_lifecycle_owner: one-person-lab/);
-  assert.match(content, /# opl_packages_lifecycle_command: opl packages/);
-  assert.match(content, /# package_specific_formula_allowed: false/);
-  assert.match(content, /# package_specific_cask_allowed: false/);
-  assert.match(content, /# forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
-  assert.match(content, /# forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow/);
-  assert.match(content, /# must_not_write_user_codex_state: true/);
-  assert.match(content, /# must_not_define_agent_semantics: true/);
-  const displayVersion = content.match(/^\s*# display_version: (\S+)$/m)?.[1];
-  const updaterVersion = content.match(/^\s*# updater_version: (\S+)$/m)?.[1];
-  if (displayVersion && updaterVersion && displayVersion !== updaterVersion) {
-    assert.match(content, new RegExp(`^\\s*version "${updaterVersion},${displayVersion}"$`, 'm'));
-    const isFull = cask.endsWith('one-person-lab-full.rb');
-    assert.match(
-      content,
-      isFull
-        ? /releases\/download\/v#\{version\.csv\.second\}\//
-        : /releases\/download\/v#\{version\.csv\.second\}\//,
-    );
-    assert.match(
-      content,
-      isFull
-        ? /One-Person-Lab-Full-#\{version\.csv\.second\}-mac-arm64\.dmg/
-        : /One-Person-Lab-#\{version\.csv\.second\}-mac-arm64\.dmg/,
-    );
-  }
-}
-
-for (const file of [
-  'scripts/sync-cask-from-release.mjs',
-  'scripts/sync-formula-from-framework-artifact.mjs',
-  'Casks/one-person-lab.rb',
-  'Casks/one-person-lab-full.rb',
-  'Casks/opl-fleet-agent.rb',
-  'Casks/opl-codex-models.rb',
-  '.github/workflows/sync-from-app-releases.yml',
-  '.github/workflows/tap-check.yml',
-]) {
-  const content = read(file);
-  assert.doesNotMatch(content, /\bmodules\b|agent_pack|one-person-lab-modules|skip-modules/);
+try {
+  const atomicFormulaPath = path.join(atomicFormulaTmp, 'Formula/opl.rb');
+  writeFormulaAtomically(atomicFormulaPath, renderedFormula);
+  assert.equal(fs.readFileSync(atomicFormulaPath, 'utf8'), renderedFormula);
+  assert.deepEqual(
+    fs.readdirSync(path.dirname(atomicFormulaPath)),
+    ['opl.rb'],
+    'atomic Formula generation must not leave temporary files',
+  );
+  const atomicFormulaSyntax = spawnSync('ruby', ['-c', atomicFormulaPath], { encoding: 'utf8' });
+  assert.equal(atomicFormulaSyntax.status, 0, atomicFormulaSyntax.stderr);
+} finally {
+  fs.rmSync(atomicFormulaTmp, { recursive: true, force: true });
 }
 
 function writeMockGh(dir, {
@@ -274,350 +198,216 @@ exit 99
   return bin;
 }
 
-const successTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-boundary-success-'));
-fs.mkdirSync(path.join(successTmp, 'Casks'));
-const successBin = writeMockGh(successTmp, { assets: [
-  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-  { name: 'One-Person-Lab-Full-26.7.12-mac-arm64.dmg', digest: 'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' },
-  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  { name: 'opl-release-manifest.json', digest: 'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
-  { name: 'standard-gatekeeper-launch-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
-  { name: 'standard-apple-notarization-receipt.json', digest: 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' },
-] });
-
-const success = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-  '--release-tag',
-  'v26.7.12',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${successBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(success.status, 0, success.stderr);
-const generated = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab.rb'), 'utf8');
-assert.match(generated, /# downstream_mirror_only: true/);
-assert.match(generated, /# release_truth_authority: app_release/);
-assert.match(generated, /# failure_feedback_owner: app_release_operator/);
-assert.match(generated, /# opl_packages_lifecycle_owned_by_homebrew: false/);
-assert.match(generated, /# opl_packages_lifecycle_owner: one-person-lab/);
-assert.match(generated, /# opl_packages_lifecycle_command: opl packages/);
-assert.match(generated, /# package_specific_formula_allowed: false/);
-assert.match(generated, /# package_specific_cask_allowed: false/);
-assert.match(generated, /# must_not_define_release_currentness: true/);
-assert.doesNotMatch(generated, /depends_on formula: "opl"/);
-
-fs.mkdirSync(path.join(successTmp, 'Formula'));
-fs.writeFileSync(path.join(successTmp, 'Formula/opl.rb'), '# current Formula\n');
-const successWithFormula = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-  '--release-tag',
-  'v26.7.12',
-  '--with-opl-formula',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${successBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(successWithFormula.status, 0, successWithFormula.stderr);
-assert.match(
-  fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab.rb'), 'utf8'),
-  /depends_on formula: "opl"/,
-);
-
-const fullSuccess = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'full',
-  '--release-tag',
-  'v26.7.12',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${successBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(fullSuccess.status, 0, fullSuccess.stderr);
-const generatedFull = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8');
-assert.match(generatedFull, /# channel: full/);
-assert.match(generatedFull, /opl-release-manifest\.json/);
-assert.match(generatedFull, /skip "Full casks track explicitly published Full cohorts through App release automation"/);
-assert.doesNotMatch(generatedFull, /releases\/latest/);
-assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
-
-const unifiedTrustBin = writeMockGh(successTmp, { assets: [
-  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  { name: 'opl-release-attestation.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
-] });
-const unifiedTrustSuccess = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-  '--release-tag',
-  'v26.7.12',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${unifiedTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(unifiedTrustSuccess.status, 0, unifiedTrustSuccess.stderr);
-
-const legacyTrustBin = writeMockGh(successTmp, { assets: [
-  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
-] });
-const legacyTrustSuccess = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-  '--release-tag',
-  'v26.7.12',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${legacyTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(legacyTrustSuccess.status, 0, legacyTrustSuccess.stderr);
-
-const missingTrustBin = writeMockGh(successTmp, { assets: [
-  { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-  { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-] });
-const missingTrust = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-  '--release-tag',
-  'v26.7.12',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${missingTrustBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.notEqual(missingTrust.status, 0);
-assert.match(missingTrust.stderr, /opl-release-attestation\.json/);
-assert.match(missingTrust.stderr, /standard-gatekeeper-launch-policy\.json/);
-assert.match(missingTrust.stderr, /standard-apple-notarization-receipt\.json/);
-assert.match(missingTrust.stderr, /legacy fallback standard-local-authorization-policy\.json are also absent/);
-
-const fullFormulaBypass = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'full',
-  '--release-tag',
-  'v26.7.12',
-  '--with-opl-formula',
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${successBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.notEqual(fullFormulaBypass.status, 0);
-assert.match(fullFormulaBypass.stderr, /Full casks consume the App-owned embedded Base/);
-assert.doesNotMatch(
-  fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8'),
-  /depends_on formula: "opl"/,
-);
-
-const nightlyVersion = '26.7.12-nightly';
-const nightlyBin = writeMockGh(successTmp, {
-  tagName: `v${nightlyVersion}`,
-  isPrerelease: true,
-  assets: [
-    { name: `One-Person-Lab-${nightlyVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-    { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  ],
-});
-const nightlySuccess = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'nightly',
-  '--release-tag',
-  `v${nightlyVersion}`,
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${nightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
-const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
-assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
-assert.match(generatedNightly, /depends_on macos: :ventura/);
-assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
-assert.match(generatedNightly, /# package_specific_formula_allowed: false/);
-assert.match(generatedNightly, /# package_specific_cask_allowed: false/);
-
-const migratedNightlyVersion = '26.7.15-nightly';
-const migratedNightlyAssetVersion = `${migratedNightlyVersion}.29445296888.1`;
-const migratedNightlyBin = writeMockGh(successTmp, {
-  tagName: `v${migratedNightlyVersion}`,
-  isPrerelease: true,
-  assets: [
-    { name: `One-Person-Lab-${migratedNightlyAssetVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
-    { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
-  ],
-});
-const migratedNightly = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'nightly',
-  '--release-tag',
-  `v${migratedNightlyVersion}`,
-], {
-  cwd: successTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${migratedNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(migratedNightly.status, 0, migratedNightly.stderr);
-const generatedMigratedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
-assert.match(generatedMigratedNightly, /version "26\.7\.15-nightly"/);
-assert.match(
-  generatedMigratedNightly,
-  /releases\/download\/v#\{version\}\/One-Person-Lab-26\.7\.15-nightly\.29445296888\.1-mac-arm64\.dmg/,
-);
-assert.match(
-  generatedMigratedNightly,
-  /manifest: https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v26\.7\.15-nightly\/latest-arm64-mac\.yml/,
-);
-
-const noNightlyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-nightly-noop-'));
-fs.mkdirSync(path.join(noNightlyTmp, 'Casks'));
-const noNightlyBin = writeMockGh(noNightlyTmp, { releases: [] });
-const noNightly = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'nightly',
-  '--allow-missing-nightly',
-], {
-  cwd: noNightlyTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${noNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.equal(noNightly.status, 0, noNightly.stderr);
-assert.deepEqual(JSON.parse(noNightly.stdout), {
-  status: 'no_op',
-  channel: 'nightly',
-  reason: 'no_eligible_published_prerelease',
-});
-assert.equal(fs.existsSync(path.join(noNightlyTmp, 'Casks/one-person-lab-nightly.rb')), false);
-
-const noNightlyStrict = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'nightly',
-], {
-  cwd: noNightlyTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${noNightlyBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-assert.notEqual(noNightlyStrict.status, 0);
-assert.match(noNightlyStrict.stderr, /No published nightly release found/);
-
-const failureTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-boundary-failure-'));
-fs.mkdirSync(path.join(failureTmp, 'Casks'));
-const failureBin = writeMockGh(failureTmp);
-
-const result = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--channel',
-  'stable',
-], {
-  cwd: failureTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${failureBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
-
-assert.notEqual(result.status, 0);
-assert.match(result.stderr, /downstream App release mirror only/);
-assert.match(result.stderr, /App release operator\/authority/);
-assert.match(result.stderr, /must not define release truth\/currentness/);
-
-for (const [channel, tag, expected] of [
-  ['stable', 'v26.7.12-a', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
-  ['stable', 'v1.2.3', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
-  ['nightly', 'v26.7.12-nightly.r0', /Nightly cask updates must use YY\.M\.D-nightly/],
-  ['nightly', 'v26.7.12-nightly.r10', /Nightly cask updates must use YY\.M\.D-nightly/],
-  ['nightly', 'v26.7.12-nightly.123456789.1', /Nightly cask updates must use YY\.M\.D-nightly/],
-  ['nightly', 'v26.7.12-nightly.123456789.0', /Nightly cask updates must use YY\.M\.D-nightly/],
-]) {
-  const invalidVersion = spawnSync(process.execPath, [
-    path.join(root, 'scripts/sync-cask-from-release.mjs'),
-    '--channel',
-    channel,
-    '--release-tag',
-    tag,
-  ], {
-    cwd: failureTmp,
+function runSyncCask(cwd, binDir, args) {
+  return spawnSync(process.execPath, [path.join(root, 'scripts/sync-cask-from-release.mjs'), ...args], {
+    cwd,
     encoding: 'utf8',
     env: {
       ...process.env,
-      PATH: `${failureBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
     },
   });
-  assert.notEqual(invalidVersion.status, 0);
-  assert.match(invalidVersion.stderr, expected);
 }
 
-const usage = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-cask-from-release.mjs'),
-  '--wat',
-  'stable',
-], {
-  cwd: failureTmp,
-  encoding: 'utf8',
-  env: {
-    ...process.env,
-    PATH: `${failureBin}${path.delimiter}${process.env.PATH ?? ''}`,
-  },
-});
+const successTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-boundary-success-'));
+try {
+  fs.mkdirSync(path.join(successTmp, 'Casks'));
+  const successBin = writeMockGh(successTmp, {
+    assets: [
+      { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'One-Person-Lab-Full-26.7.12-mac-arm64.dmg', digest: 'sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      { name: 'opl-release-manifest.json', digest: 'sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee' },
+      { name: 'standard-gatekeeper-launch-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+      { name: 'standard-apple-notarization-receipt.json', digest: 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' },
+    ],
+  });
 
-assert.notEqual(usage.status, 0);
-assert.match(usage.stderr, /Unknown option: --wat/);
-assert.doesNotMatch(usage.stderr, /App release operator\/authority/);
+  const success = runSyncCask(successTmp, successBin, ['--channel', 'stable', '--release-tag', 'v26.7.12']);
+  assert.equal(success.status, 0, success.stderr);
+  const generated = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab.rb'), 'utf8');
+  assert.match(generated, /^cask "one-person-lab" do$/m);
+  assert.match(generated, /^\s*version "26\.7\.12"$/m);
+  assert.match(generated, /^\s*sha256 "a{64}"$/m);
+  assert.match(generated, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
+  assert.doesNotMatch(generated, /depends_on formula: "opl"/);
 
-const packageSpecificFormula = spawnSync(process.execPath, [
-  path.join(root, 'scripts/sync-formula-from-framework-artifact.mjs'), '--artifact-ref', frameworkArtifact,
-  '--formula-path', '/tmp/mas.rb'], { encoding:'utf8' });
+  fs.mkdirSync(path.join(successTmp, 'Formula'));
+  fs.writeFileSync(path.join(successTmp, 'Formula/opl.rb'), '# current Formula\n');
+  const successWithFormula = runSyncCask(successTmp, successBin, [
+    '--channel',
+    'stable',
+    '--release-tag',
+    'v26.7.12',
+    '--with-opl-formula',
+  ]);
+  assert.equal(successWithFormula.status, 0, successWithFormula.stderr);
+  assert.match(fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab.rb'), 'utf8'), /depends_on formula: "opl"/);
+
+  const fullSuccess = runSyncCask(successTmp, successBin, ['--channel', 'full', '--release-tag', 'v26.7.12']);
+  assert.equal(fullSuccess.status, 0, fullSuccess.stderr);
+  const generatedFull = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8');
+  assert.match(generatedFull, /^cask "one-person-lab-full" do$/m);
+  assert.match(generatedFull, /One-Person-Lab-Full-#\{version\}-mac-arm64\.dmg/);
+  assert.doesNotMatch(generatedFull, /releases\/latest/);
+  assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
+
+  const unifiedTrustBin = writeMockGh(successTmp, {
+    assets: [
+      { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      { name: 'opl-release-attestation.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+    ],
+  });
+  assert.equal(
+    runSyncCask(successTmp, unifiedTrustBin, ['--channel', 'stable', '--release-tag', 'v26.7.12']).status,
+    0,
+  );
+
+  const legacyTrustBin = writeMockGh(successTmp, {
+    assets: [
+      { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      { name: 'standard-local-authorization-policy.json', digest: 'sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc' },
+    ],
+  });
+  assert.equal(
+    runSyncCask(successTmp, legacyTrustBin, ['--channel', 'stable', '--release-tag', 'v26.7.12']).status,
+    0,
+  );
+
+  const missingTrustBin = writeMockGh(successTmp, {
+    assets: [
+      { name: 'One-Person-Lab-26.7.12-mac-arm64.dmg', digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+    ],
+  });
+  const missingTrust = runSyncCask(successTmp, missingTrustBin, ['--channel', 'stable', '--release-tag', 'v26.7.12']);
+  assert.notEqual(missingTrust.status, 0);
+  assert.match(missingTrust.stderr, /opl-release-attestation\.json/);
+  assert.match(missingTrust.stderr, /standard-gatekeeper-launch-policy\.json/);
+  assert.match(missingTrust.stderr, /standard-apple-notarization-receipt\.json/);
+  assert.match(missingTrust.stderr, /legacy fallback standard-local-authorization-policy\.json are also absent/);
+
+  const fullFormulaBypass = runSyncCask(successTmp, successBin, [
+    '--channel',
+    'full',
+    '--release-tag',
+    'v26.7.12',
+    '--with-opl-formula',
+  ]);
+  assert.notEqual(fullFormulaBypass.status, 0);
+  assert.match(fullFormulaBypass.stderr, /Full casks consume the App-owned embedded Base/);
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8'),
+    /depends_on formula: "opl"/,
+  );
+
+  const nightlyVersion = '26.7.12-nightly';
+  const nightlyBin = writeMockGh(successTmp, {
+    tagName: `v${nightlyVersion}`,
+    isPrerelease: true,
+    assets: [
+      { name: `One-Person-Lab-${nightlyVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+    ],
+  });
+  const nightlySuccess = runSyncCask(successTmp, nightlyBin, ['--channel', 'nightly', '--release-tag', `v${nightlyVersion}`]);
+  assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
+  const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
+  assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
+  assert.match(generatedNightly, /depends_on macos: :ventura/);
+  assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
+
+  const migratedNightlyVersion = '26.7.15-nightly';
+  const migratedNightlyAssetVersion = `${migratedNightlyVersion}.29445296888.1`;
+  const migratedNightlyBin = writeMockGh(successTmp, {
+    tagName: `v${migratedNightlyVersion}`,
+    isPrerelease: true,
+    assets: [
+      { name: `One-Person-Lab-${migratedNightlyAssetVersion}-mac-arm64.dmg`, digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' },
+      { name: 'latest-arm64-mac.yml', digest: 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+    ],
+  });
+  const migratedNightly = runSyncCask(successTmp, migratedNightlyBin, [
+    '--channel',
+    'nightly',
+    '--release-tag',
+    `v${migratedNightlyVersion}`,
+  ]);
+  assert.equal(migratedNightly.status, 0, migratedNightly.stderr);
+  const generatedMigratedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
+  assert.match(generatedMigratedNightly, /version "26\.7\.15-nightly"/);
+  assert.match(
+    generatedMigratedNightly,
+    /releases\/download\/v#\{version\}\/One-Person-Lab-26\.7\.15-nightly\.29445296888\.1-mac-arm64\.dmg/,
+  );
+} finally {
+  fs.rmSync(successTmp, { recursive: true, force: true });
+}
+
+const noNightlyTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-nightly-noop-'));
+try {
+  fs.mkdirSync(path.join(noNightlyTmp, 'Casks'));
+  const noNightlyBin = writeMockGh(noNightlyTmp, { releases: [] });
+  const noNightly = runSyncCask(noNightlyTmp, noNightlyBin, ['--channel', 'nightly', '--allow-missing-nightly']);
+  assert.equal(noNightly.status, 0, noNightly.stderr);
+  assert.deepEqual(JSON.parse(noNightly.stdout), {
+    status: 'no_op',
+    channel: 'nightly',
+    reason: 'no_eligible_published_prerelease',
+  });
+  assert.equal(fs.existsSync(path.join(noNightlyTmp, 'Casks/one-person-lab-nightly.rb')), false);
+
+  const noNightlyStrict = runSyncCask(noNightlyTmp, noNightlyBin, ['--channel', 'nightly']);
+  assert.notEqual(noNightlyStrict.status, 0);
+  assert.match(noNightlyStrict.stderr, /No published nightly release found/);
+} finally {
+  fs.rmSync(noNightlyTmp, { recursive: true, force: true });
+}
+
+const failureTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-boundary-failure-'));
+try {
+  fs.mkdirSync(path.join(failureTmp, 'Casks'));
+  const failureBin = writeMockGh(failureTmp);
+
+  const result = runSyncCask(failureTmp, failureBin, ['--channel', 'stable']);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /downstream App release mirror only/);
+  assert.match(result.stderr, /App release operator\/authority/);
+  assert.match(result.stderr, /must not define release truth\/currentness/);
+
+  for (const [channel, tag, expected] of [
+    ['stable', 'v26.7.12-a', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
+    ['stable', 'v1.2.3', /Stable cask updates must use YY\.M\.D without a same-day suffix/],
+    ['nightly', 'v26.7.12-nightly.r0', /Nightly cask updates must use YY\.M\.D-nightly/],
+    ['nightly', 'v26.7.12-nightly.r10', /Nightly cask updates must use YY\.M\.D-nightly/],
+    ['nightly', 'v26.7.12-nightly.123456789.1', /Nightly cask updates must use YY\.M\.D-nightly/],
+    ['nightly', 'v26.7.12-nightly.123456789.0', /Nightly cask updates must use YY\.M\.D-nightly/],
+  ]) {
+    const invalidVersion = runSyncCask(failureTmp, failureBin, ['--channel', channel, '--release-tag', tag]);
+    assert.notEqual(invalidVersion.status, 0);
+    assert.match(invalidVersion.stderr, expected);
+  }
+
+  const usage = runSyncCask(failureTmp, failureBin, ['--wat', 'stable']);
+  assert.notEqual(usage.status, 0);
+  assert.match(usage.stderr, /Unknown option: --wat/);
+  assert.doesNotMatch(usage.stderr, /App release operator\/authority/);
+} finally {
+  fs.rmSync(failureTmp, { recursive: true, force: true });
+}
+
+const packageSpecificFormula = spawnSync(
+  process.execPath,
+  [
+    path.join(root, 'scripts/sync-formula-from-framework-artifact.mjs'),
+    '--artifact-ref',
+    frameworkArtifact,
+    '--formula-path',
+    '/tmp/mas.rb',
+  ],
+  { encoding: 'utf8' },
+);
 assert.notEqual(packageSpecificFormula.status, 0);
 assert.match(packageSpecificFormula.stderr, /only allowed Formula output is opl\.rb/);

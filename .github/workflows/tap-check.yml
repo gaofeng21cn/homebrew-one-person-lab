@@ -21,8 +21,7 @@ jobs:
         run: |
           node test/downstream-boundary.test.mjs
           node test/stable-distribution.test.mjs
-          node test/fleet-agent-cask.test.mjs
-          node test/codex-models-cask.test.mjs
+          node test/dmg-cask-sync.test.mjs
       - name: Guard tap surface
         run: |
           set -euo pipefail

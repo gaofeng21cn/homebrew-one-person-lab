@@ -37,8 +37,8 @@ casks, workflows, and boundary tests.
 | Standard cask | App protected Homebrew follower | Published Standard App artifact and exact Cask CAS |
 | Full cask | App protected `append_full` publisher | Qualified Full DMG and embedded Base bytes |
 | Nightly cask | `sync-from-app-releases.yml` | Eligible immutable App Nightly prerelease |
-| Fleet Agent cask | `sync-fleet-agent-release.yml` | Exact Fleet Agent release |
-| Codex Models cask | `sync-codex-models-release.yml` | Exact model-manager release |
+| Fleet Agent cask | `sync-dmg-cask-release.yml` (`opl-fleet-agent`) | Exact Fleet Agent release |
+| Codex Models cask | `sync-dmg-cask-release.yml` (`opl-codex-models`) | Exact model-manager release |
 
 Tap workflows serialize writes with `opl-homebrew-tap-write`. Framework Formula
 and App Casks advance independently; neither requires the other to advance. Full is an
@@ -72,8 +72,7 @@ Run the source boundary and affected distribution tests before committing:
 ```bash
 node test/downstream-boundary.test.mjs
 node test/stable-distribution.test.mjs
-node test/fleet-agent-cask.test.mjs
-node test/codex-models-cask.test.mjs
+node test/dmg-cask-sync.test.mjs
 git diff --check
 ```
 
