@@ -232,6 +232,13 @@ try {
   assert.match(generated, /^\s*version "26\.7\.12"$/m);
   assert.match(generated, /^\s*sha256 "a{64}"$/m);
   assert.match(generated, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
+  assert.match(generated, /^\s*auto_updates true$/m);
+  assert.match(generated, /# channel: stable/);
+  assert.match(generated, /# display_version: 26\.7\.12/);
+  assert.match(generated, /# updater_version: 26\.7\.12/);
+  assert.match(generated, /# framework_carrier: homebrew_formula_opl/);
+  assert.match(generated, /# active_framework_count_target: 1/);
+  assert.match(generated, /Stable casks pair display tags with monotonic updater versions/);
   assert.doesNotMatch(generated, /depends_on formula: "opl"/);
 
   fs.mkdirSync(path.join(successTmp, 'Formula'));
@@ -251,6 +258,10 @@ try {
   const generatedFull = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-full.rb'), 'utf8');
   assert.match(generatedFull, /^cask "one-person-lab-full" do$/m);
   assert.match(generatedFull, /One-Person-Lab-Full-#\{version\}-mac-arm64\.dmg/);
+  assert.match(generatedFull, /# channel: stable/);
+  assert.match(generatedFull, /# standard_updater_visible: false/);
+  assert.match(generatedFull, /# framework_carrier: full_dmg_embedded_opl_base/);
+  assert.doesNotMatch(generatedFull, /auto_updates true/);
   assert.doesNotMatch(generatedFull, /releases\/latest/);
   assert.doesNotMatch(generatedFull, /depends_on formula: "opl"/);
 
@@ -318,8 +329,11 @@ try {
   assert.equal(nightlySuccess.status, 0, nightlySuccess.stderr);
   const generatedNightly = fs.readFileSync(path.join(successTmp, 'Casks/one-person-lab-nightly.rb'), 'utf8');
   assert.match(generatedNightly, /version "26\.7\.12-nightly"/);
+  assert.match(generatedNightly, /^\s*auto_updates true$/m);
   assert.match(generatedNightly, /depends_on macos: :ventura/);
   assert.match(generatedNightly, /One-Person-Lab-#\{version\}-mac-arm64\.dmg/);
+  assert.match(generatedNightly, /# display_version: 26\.7\.12-nightly/);
+  assert.match(generatedNightly, /# updater_version: 26\.7\.12-nightly/);
 
   const migratedNightlyVersion = '26.7.15-nightly';
   const migratedNightlyAssetVersion = `${migratedNightlyVersion}.29445296888.1`;
