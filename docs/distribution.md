@@ -6,18 +6,20 @@ remain with their product owners.
 
 ## Product Boundaries
 
-The only Formula is `Formula/opl.rb`. It uses the `opl-framework` npm package
-to install the `opl` CLI/runtime and all production dependencies, including
-Temporal. The npm package is an implementation detail, not another Formula or
-OPL Package identity. Formula installation does not initialize a workspace or
-run Package lifecycle operations.
+The only Formula is `Formula/opl.rb`. It builds the `opl` CLI/runtime and
+production dependencies (including Temporal) directly from the pinned OPL
+Framework GitHub source archive rather than npm, matching its digest-verified
+Framework OCI artifact provenance. Formula installation does not initialize a
+workspace or run Package lifecycle operations.
 
-Standard and eligible Nightly App casks depend on that same Base Formula. Full
-consumes the App-owned embedded Base and must not install another Formula.
-App first launch performs Framework reconciliation. Direct DMG installation
-may use an App-managed Framework root when no system Formula exists, but only
-one compatible carrier may be active. Homebrew does not version or mutate
-Package payloads carried inside Full; installed Package lifecycle remains
+Standard (`one-person-lab`), Nightly (`one-person-lab-nightly`), `opl-fleet-agent`,
+and `opl-codex-models` Casks declare `auto_updates true` for Sparkle 2 Ed25519
+in-app updates. Standard and eligible Nightly App casks depend on Formula `opl`,
+whereas `one-person-lab-full` embeds the Base runtime inside the App bundle without
+depending on Formula `opl`. App first launch performs Framework reconciliation. Direct
+DMG installation may use an App-managed Framework root when no system Formula
+exists, but only one compatible carrier may be active. Homebrew does not version
+or mutate Package payloads carried inside Full; installed Package lifecycle remains
 Framework-owned.
 
 Fleet Agent and Codex Models are independent casks. Each owner publishes
