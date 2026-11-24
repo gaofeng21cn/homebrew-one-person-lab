@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
 const frameworkRepo = 'https://github.com/gaofeng21cn/one-person-lab.git';
 const formulaName = 'opl';
@@ -182,13 +183,24 @@ export const writeFormulaAtomically = writeFileAtomically;
 
 
 async function main() {
-  const options = { formulaPath: 'Formula/opl.rb', artifactRef: '' };
-  const keys = { '--artifact-ref': 'artifactRef', '--formula-path': 'formulaPath' };
-  for (let i = 2; i < process.argv.length; i += 2) {
-    const key = keys[process.argv[i]];
-    if (!key || !process.argv[i+1]) throw new Error(`Invalid option: ${process.argv[i]}`);
-    options[key] = process.argv[i+1];
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args: process.argv.slice(2),
+      options: {
+        'artifact-ref': { type: 'string' },
+        'formula-path': { type: 'string', default: 'Formula/opl.rb' },
+      },
+      allowPositionals: false,
+      strict: true,
+    }));
+  } catch (error) {
+    throw new Error(`Invalid option: ${error?.message ?? String(error)}`);
   }
+  const options = {
+    formulaPath: values['formula-path'] ?? 'Formula/opl.rb',
+    artifactRef: values['artifact-ref'] ?? '',
+  };
   if (path.basename(options.formulaPath) !== 'opl.rb') throw new Error('The only allowed Formula output is opl.rb.');
   const metadata = await readFrameworkArtifact(options.artifactRef);
   metadata.transportSha256 = await sha256OfUrl(metadata.archiveUrl);

@@ -3,8 +3,10 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parseArgs as parseNodeArgs } from 'node:util';
+import { DEFAULT_APP_REPO, renderAppHomebrewCask } from './homebrew-cask-renderer.mjs';
 
-const appRepo = 'gaofeng21cn/one-person-lab-app';
+const appRepo = DEFAULT_APP_REPO;
 const failureRoute = [
   'Homebrew tap is a downstream App release mirror only.',
   `Route this failure to the App release operator/authority for ${appRepo}; fix or republish the App release, then rerun tap sync.`,
@@ -14,41 +16,39 @@ const appReleaseFailurePattern = /No published nightly release found|Latest stab
 const sha256Pattern = /^sha256:(?<hash>[a-f0-9]{64})$/i;
 const stableVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])$/;
 const nightlyVersionPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly(?:\.r[1-9])?$/;
-const caskConflictMap = {
-  'one-person-lab': ['one-person-lab-full', 'one-person-lab-nightly'],
-  'one-person-lab-nightly': ['one-person-lab', 'one-person-lab-full'],
-  'one-person-lab-full': ['one-person-lab', 'one-person-lab-nightly'],
-};
 
 function parseArgs(argv) {
+  let values;
+  try {
+    ({ values } = parseNodeArgs({
+      args: argv,
+      options: {
+        channel: { type: 'string' },
+        'release-tag': { type: 'string' },
+        'with-opl-formula': { type: 'boolean', default: false },
+        'allow-missing-nightly': { type: 'boolean', default: false },
+      },
+      allowPositionals: false,
+      strict: true,
+    }));
+  } catch (error) {
+    if (error?.code === 'ERR_PARSE_ARGS_UNKNOWN_OPTION') {
+      const flag = error.message.match(/'([^']+)'/)?.[1] ?? '';
+      throw new Error(`Unknown option: ${flag}`);
+    }
+    throw error;
+  }
   const parsed = {
-    channel: '',
-    releaseTag: '',
-    dependsOnOplFormula: false,
-    allowMissingNightly: false,
+    channel: values.channel ?? '',
+    releaseTag: values['release-tag'] ?? '',
+    dependsOnOplFormula: values['with-opl-formula'] === true,
+    allowMissingNightly: values['allow-missing-nightly'] === true,
   };
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = argv[index];
-    if (token === '--with-opl-formula') {
-      parsed.dependsOnOplFormula = true;
-      continue;
-    }
-    if (token === '--allow-missing-nightly') {
-      parsed.allowMissingNightly = true;
-      continue;
-    }
-    const value = argv[index + 1];
-    if (!value || value.startsWith('--')) {
-      throw new Error(`${token} requires a value.`);
-    }
-    index += 1;
-    if (token === '--channel') {
-      parsed.channel = value;
-    } else if (token === '--release-tag') {
-      parsed.releaseTag = value;
-    } else {
-      throw new Error(`Unknown option: ${token}`);
-    }
+  if (values.channel !== undefined && (!parsed.channel || parsed.channel.startsWith('--'))) {
+    throw new Error('--channel requires a value.');
+  }
+  if (values['release-tag'] !== undefined && (!parsed.releaseTag || parsed.releaseTag.startsWith('--'))) {
+    throw new Error('--release-tag requires a value.');
   }
   if (!['stable', 'nightly', 'full'].includes(parsed.channel)) {
     throw new Error('--channel must be stable, nightly, or full.');
@@ -192,94 +192,19 @@ function versionFromTag(tag) {
   return tag.replace(/^v/, '');
 }
 
-function boundaryBlock({ channel, version, manifestUrl, checksum }) {
-  const isFull = channel === 'full';
-  return [
-    '  # OPL_HOMEBREW_BOUNDARY_START',
-    `  # channel: ${channel}`,
-    `  # package_kind: ${isFull ? 'app_full_first_install' : 'app_standard'}`,
-    `  # version: ${version}`,
-    `  # manifest: ${manifestUrl}`,
-    `  # checksum: sha256:${checksum}`,
-    '  # downstream_mirror_only: true',
-    '  # release_truth_authority: app_release',
-    '  # failure_feedback_owner: app_release_operator',
-    `  # full_first_install_allowed: ${isFull ? 'true' : 'false'}`,
-    '  # stable_promotion_from_nightly_allowed: false',
-    '  # publishes_or_pushes_remote: false',
-    `  # cohort: ${isFull ? 'full_first_install_homebrew_distribution' : 'standard_desktop_homebrew_distribution'}`,
-    `  # standard_updater_visible: ${isFull ? 'false' : 'true'}`,
-    `  # bundled_full_runtime_payload_allowed: ${isFull ? 'true' : 'false'}`,
-    '  # homebrew_allowed_software_objects: opl_base,opl_app',
-    '  # opl_packages_lifecycle_owned_by_homebrew: false',
-    '  # opl_packages_lifecycle_owner: one-person-lab',
-    '  # opl_packages_lifecycle_command: opl packages',
-    '  # package_specific_formula_allowed: false',
-    '  # package_specific_cask_allowed: false',
-    '  # forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow',
-    '  # forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow',
-    '  # must_not_define_release_currentness: true',
-    '  # must_not_write_user_codex_state: true',
-    '  # must_not_define_agent_semantics: true',
-    '  # OPL_HOMEBREW_BOUNDARY_END',
-  ].join('\n');
-}
-
 function renderCask({ channel, version, checksum, manifestUrl, dmgAssetName, dependsOnOplFormula }) {
   const isFull = channel === 'full';
-  const token = channel === 'nightly' ? 'one-person-lab-nightly' : isFull ? 'one-person-lab-full' : 'one-person-lab';
-  const expectedDmgAssetName = `${isFull ? 'One-Person-Lab-Full' : 'One-Person-Lab'}-${version}-mac-arm64.dmg`;
-  const renderedDmgAssetName = dmgAssetName === expectedDmgAssetName
-    ? `${isFull ? 'One-Person-Lab-Full' : 'One-Person-Lab'}-#{version}-mac-arm64.dmg`
-    : dmgAssetName;
-  return [
-    `cask "${token}" do`,
-    `  version "${version}"`,
-    `  sha256 "${checksum}"`,
-    '',
-    `  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/${renderedDmgAssetName}"`,
-    `  name "${isFull ? 'One Person Lab Full' : 'One Person Lab'}"`,
-    `  desc "${isFull ? 'Complete first-install package for One Person Lab' : 'AI-first desktop research and agent orchestration app'}"`,
-    '  homepage "https://github.com/gaofeng21cn/one-person-lab-app"',
-    '',
-    ...(channel === 'stable'
-      ? [
-          '  livecheck do',
-          '    url "https://github.com/gaofeng21cn/one-person-lab-app/releases/latest"',
-          '    regex(%r{/releases/tag/v?(\\d+(?:\\.\\d+)*)}i)',
-          '  end',
-          '',
-        ]
-      : [
-          '  livecheck do',
-          `    skip "${isFull
-            ? 'Full casks track explicitly published Full cohorts through App release automation'
-            : 'Nightly casks track prerelease cohorts through tap automation'}"`,
-          '  end',
-          '',
-        ]),
-    ...(isFull ? [] : ['  auto_updates true']),
-    `  conflicts_with cask: [${(caskConflictMap[token] ?? []).map((conflict) => `"${conflict}"`).join(', ')}]`,
-    '  depends_on arch: :arm64',
-    ...(dependsOnOplFormula ? ['  depends_on formula: "opl"'] : []),
-    '  depends_on macos: :ventura',
-    '',
-    boundaryBlock({ channel, version, manifestUrl, checksum }),
-    '',
-    '  app "One Person Lab.app"',
-    ...(isFull
-      ? [
-          '',
-          '  caveats <<~EOS',
-          '    This cask installs the complete first-install package. After launch,',
-          '    One Person Lab manages runtime, Packages, and Agent exposure through',
-          '    the App/CLI; Full assets stay outside standard updater metadata.',
-          '  EOS',
-        ]
-      : []),
-    'end',
-    '',
-  ].join('\n');
+  return renderAppHomebrewCask({
+    channel: isFull ? 'stable' : channel,
+    packageKind: isFull ? 'app_full_first_install' : 'app_standard',
+    version,
+    updaterVersion: version,
+    checksumSha256: checksum,
+    manifestUrl,
+    dmgAssetName,
+    dependsOnOplFormula,
+    appRepo,
+  });
 }
 
 function main() {
