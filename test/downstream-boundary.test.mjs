@@ -79,6 +79,7 @@ assertCsvStableCask(standardCask, {
   requiresFormula: formulaPublished,
 });
 assert.match(standardCask, /conflicts_with cask: \["one-person-lab-full", "one-person-lab-nightly"\]/);
+assert.match(standardCask, /^\s*auto_updates true$/m);
 assert.doesNotMatch(standardCask, /One-Person-Lab-Full/);
 
 assertCsvStableCask(fullCask, {
@@ -100,6 +101,7 @@ if (hasNightlyCask) {
     /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\}\/One-Person-Lab-[^"]+-mac-arm64\.dmg"$/m,
   );
   assert.match(nightlyCask, /conflicts_with cask: \["one-person-lab", "one-person-lab-full"\]/);
+  assert.match(nightlyCask, /^\s*auto_updates true$/m);
   assert.match(nightlyCask, /^\s*depends_on arch: :arm64$/m);
   assert.match(nightlyCask, /^\s*depends_on macos: :ventura$/m);
   assert.doesNotMatch(nightlyCask, /depends_on macos: :big_sur/);

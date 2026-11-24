@@ -11,6 +11,7 @@ cask "one-person-lab" do
     skip "Stable casks pair display tags with monotonic updater versions"
   end
 
+  auto_updates true
   conflicts_with cask: ["one-person-lab-full", "one-person-lab-nightly"]
   depends_on arch: :arm64
   depends_on formula: "opl"

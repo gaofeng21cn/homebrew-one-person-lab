@@ -11,6 +11,7 @@ cask "one-person-lab-nightly" do
     skip "Nightly casks track prerelease cohorts through tap automation"
   end
 
+  auto_updates true
   conflicts_with cask: ["one-person-lab", "one-person-lab-full"]
   depends_on arch: :arm64
   depends_on formula: "opl"

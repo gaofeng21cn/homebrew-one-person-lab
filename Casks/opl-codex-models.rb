@@ -7,6 +7,12 @@ cask "opl-codex-models" do
   desc "Manage Codex official and custom model catalogs"
   homepage "https://github.com/gaofeng21cn/opl-codex-models"
 
+  livecheck do
+    url :url
+    strategy :github_latest
+  end
+
+  auto_updates true
   depends_on macos: :sonoma
 
   # release_truth_authority: opl-codex-models_release

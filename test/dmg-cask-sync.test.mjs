@@ -48,6 +48,8 @@ const targetCases = [
     wrongDmgName: 'Other.dmg',
     assertCask(content) {
       assert.match(content, /depends_on macos: :sonoma/);
+      assert.match(content, /auto_updates true/);
+      assert.match(content, /strategy :github_latest/);
       assert.match(content, /app "CodexModelManager\.app"/);
       assert.match(content, /uninstall launchctl: "com\.onepersonlab\.codex-model-manager\.sync"/);
       assert.doesNotMatch(content, /depends_on formula:/);

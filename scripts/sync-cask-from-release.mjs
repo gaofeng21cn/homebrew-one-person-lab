@@ -258,6 +258,7 @@ function renderCask({ channel, version, checksum, manifestUrl, dmgAssetName, dep
           '  end',
           '',
         ]),
+    ...(isFull ? [] : ['  auto_updates true']),
     `  conflicts_with cask: [${(caskConflictMap[token] ?? []).map((conflict) => `"${conflict}"`).join(', ')}]`,
     '  depends_on arch: :arm64',
     ...(dependsOnOplFormula ? ['  depends_on formula: "opl"'] : []),

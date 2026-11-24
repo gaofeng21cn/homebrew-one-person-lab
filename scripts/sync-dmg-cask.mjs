@@ -23,8 +23,8 @@ export const TARGETS = {
     name: 'Codex Models',
     desc: 'Manage Codex official and custom model catalogs',
     homepage: 'https://github.com/gaofeng21cn/opl-codex-models',
-    hasLivecheck: false,
-    autoUpdates: false,
+    hasLivecheck: true,
+    autoUpdates: true,
     macos: ':sonoma',
     boundaryComments: [
       '  # release_truth_authority: opl-codex-models_release',
