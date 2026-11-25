@@ -8,7 +8,7 @@ cask "one-person-lab-nightly" do
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
 
   livecheck do
-    skip "Nightly casks track prerelease cohorts through tap automation"
+    skip "Nightly casks track prerelease cohorts through App release automation"
   end
 
   auto_updates true
@@ -21,6 +21,8 @@ cask "one-person-lab-nightly" do
   # channel: nightly
   # package_kind: app_standard
   # version: 26.11.19-nightly
+  # display_version: 26.11.19-nightly
+  # updater_version: 26.11.19-nightly
   # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.11.19-nightly/latest-arm64-mac.yml
   # checksum: sha256:9ee1c3e2b223f169158f8830c3a3f2bb52268ae05e463ef7b9ab59e2e3397445
   # downstream_mirror_only: true
@@ -32,6 +34,9 @@ cask "one-person-lab-nightly" do
   # cohort: standard_desktop_homebrew_distribution
   # standard_updater_visible: true
   # bundled_full_runtime_payload_allowed: false
+  # formula_dependency_required: true
+  # framework_carrier: homebrew_formula_opl
+  # active_framework_count_target: 1
   # homebrew_allowed_software_objects: opl_base,opl_app
   # opl_packages_lifecycle_owned_by_homebrew: false
   # opl_packages_lifecycle_owner: one-person-lab
