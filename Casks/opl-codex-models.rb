@@ -1,6 +1,6 @@
 cask "opl-codex-models" do
-  version "0.4.6"
-  sha256 "12af1ccd7daa86bf93bba132c77f1b03e735c77f24bce2f6f501aeca210799e4"
+  version "0.4.7"
+  sha256 "7655266831303407c0c42d2e1b00f308e8ebe6de73cf91bdb69583784a9066d2"
 
   url "https://github.com/gaofeng21cn/opl-codex-models/releases/download/v#{version}/Codex-Models.dmg"
   name "Codex Models"
