@@ -1,6 +1,6 @@
 cask "one-person-lab-full" do
-  version "26.11.2092,26.11.20-r1"
-  sha256 "7a69a8484da3c056ac0011023ab795a74295a2b5e672c1f291b24c30b54fed6d"
+  version "26.11.2691,26.11.26"
+  sha256 "c6a61971076ddf09d66430fc284915d6558f88503b5f1cb8b642a96905061545"
 
   url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version.csv.second}/One-Person-Lab-Full-#{version.csv.second}-mac-arm64.dmg"
   name "One Person Lab Full"
@@ -18,11 +18,14 @@ cask "one-person-lab-full" do
   # OPL_HOMEBREW_BOUNDARY_START
   # channel: stable
   # package_kind: app_full_first_install
-  # version: 26.11.20-r1
-  # display_version: 26.11.20-r1
-  # updater_version: 26.11.2092
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.11.20-r1/opl-release-manifest.json
-  # checksum: sha256:7a69a8484da3c056ac0011023ab795a74295a2b5e672c1f291b24c30b54fed6d
+  # version: 26.11.26
+  # display_version: 26.11.26
+  # updater_version: 26.11.2691
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.11.26/opl-release-manifest.json
+  # checksum: sha256:c6a61971076ddf09d66430fc284915d6558f88503b5f1cb8b642a96905061545
+  # downstream_mirror_only: true
+  # release_truth_authority: app_release
+  # failure_feedback_owner: app_release_operator
   # full_first_install_allowed: true
   # stable_promotion_from_nightly_allowed: false
   # publishes_or_pushes_remote: false
@@ -40,6 +43,7 @@ cask "one-person-lab-full" do
   # package_specific_cask_allowed: false
   # forbidden_package_formulae: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
   # forbidden_package_casks: mas,mag,rca,oma,obf,mas-scholar-skills,opl-flow
+  # must_not_define_release_currentness: true
   # must_not_write_user_codex_state: true
   # must_not_define_agent_semantics: true
   # OPL_HOMEBREW_BOUNDARY_END
