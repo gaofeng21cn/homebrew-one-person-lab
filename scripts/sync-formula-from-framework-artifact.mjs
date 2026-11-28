@@ -126,7 +126,6 @@ export function renderFormula(metadata) {
   # internal_npm_package: ${internalNpmPackageName}
   # internal_installation_implementation_only: true
   # carrier_scope: framework_cli_runtime_and_production_dependencies
-  # temporal_dependency_scope: framework_production_dependency
   # app_payload_installed: false
   # opl_packages_payload_installed: false
   # package_specific_formula_allowed: false
