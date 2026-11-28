@@ -1,8 +1,8 @@
 cask "one-person-lab-nightly" do
-  version "26.11.2791-nightly.1,26.11.27-nightly"
+  version "26.11.27-nightly"
   sha256 "f937a5a12c229b839aef0367d7e6fbd4074dd227967001037b28075b609f65a1"
 
-  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version.csv.second}/One-Person-Lab-#{version.csv.second}-mac-arm64.dmg"
+  url "https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v#{version}/One-Person-Lab-#{version}-mac-arm64.dmg"
   name "One Person Lab"
   desc "AI-first desktop research and agent orchestration app"
   homepage "https://github.com/gaofeng21cn/one-person-lab-app"
@@ -22,8 +22,8 @@ cask "one-person-lab-nightly" do
   # package_kind: app_standard
   # version: 26.11.27-nightly
   # display_version: 26.11.27-nightly
-  # updater_version: 26.11.2791-nightly.1
-  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.11.27-nightly/latest-mac.yml
+  # updater_version: 26.11.27-nightly
+  # manifest: https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.11.27-nightly/latest-arm64-mac.yml
   # checksum: sha256:f937a5a12c229b839aef0367d7e6fbd4074dd227967001037b28075b609f65a1
   # downstream_mirror_only: true
   # release_truth_authority: app_release
