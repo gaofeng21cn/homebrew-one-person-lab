@@ -6,9 +6,9 @@ remain with their product owners.
 
 ## Product Boundaries
 
-The only Formula is `Formula/opl.rb`. It builds the `opl` CLI/runtime and
-production dependencies (including Temporal) directly from the pinned OPL
-Framework GitHub source archive rather than npm, matching its digest-verified
+The only Formula is `Formula/opl.rb`. It builds the `opl` CLI, `opld` daemon, and
+production dependencies (including Temporal) on Node 24 directly from the pinned
+OPL Framework GitHub source archive rather than npm, matching its digest-verified
 Framework OCI artifact provenance. Formula installation does not initialize a
 workspace or run Package lifecycle operations.
 
