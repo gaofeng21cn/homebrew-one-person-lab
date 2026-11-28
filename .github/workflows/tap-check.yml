@@ -61,7 +61,7 @@ jobs:
           fi
           for cask in "${published_casks[@]}"; do
             grep -q '# homebrew_allowed_software_objects: opl_base,opl_app' "$cask" || { echo "::error::$cask must restrict Homebrew to Base and App."; exit 1; }
-            grep -q '# opl_packages_lifecycle_command: opl packages' "$cask" || { echo "::error::$cask must route Package lifecycle through opl packages."; exit 1; }
+            grep -q '# opl_packages_lifecycle_command: opl pack' "$cask" || { echo "::error::$cask must route Package lifecycle through opl pack."; exit 1; }
             grep -q '# package_specific_formula_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Formulae."; exit 1; }
             grep -q '# package_specific_cask_allowed: false' "$cask" || { echo "::error::$cask must forbid Package-specific Casks."; exit 1; }
           done

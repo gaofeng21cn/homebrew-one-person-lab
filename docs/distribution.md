@@ -7,7 +7,7 @@ remain with their product owners.
 ## Product Boundaries
 
 The only Formula is `Formula/opl.rb`. It builds the `opl` CLI, `opld` daemon, and
-production dependencies (including Temporal) on Node 24 directly from the pinned
+production dependencies on Node 24 directly from the pinned
 OPL Framework GitHub source archive rather than npm, matching its digest-verified
 Framework OCI artifact provenance. Formula installation does not initialize a
 workspace or run Package lifecycle operations.
@@ -38,20 +38,17 @@ casks, workflows, and boundary tests.
 | Framework Formula | `sync-framework-artifact.yml` | Immutable Framework OCI artifact digest |
 | Standard cask | App protected Homebrew follower | Published Standard App artifact and exact Cask CAS |
 | Full cask | App protected `append_full` publisher | Qualified Full DMG and embedded Base bytes |
-| Nightly cask | `sync-from-app-releases.yml` | Eligible immutable App Nightly prerelease |
+| Nightly cask | App protected `release-nightly-followups.yml` (`sync-from-app-releases.yml` manual-only recovery) | Eligible immutable App Nightly prerelease |
 | Fleet Agent cask | `sync-dmg-cask-release.yml` (`opl-fleet-agent`) | Exact Fleet Agent release |
 | Codex Models cask | `sync-dmg-cask-release.yml` (`opl-codex-models`) | Exact model-manager release |
 
 Tap workflows serialize writes with `opl-homebrew-tap-write`. Framework Formula
 and App Casks advance independently; neither requires the other to advance. Full is an
 App-owned additive publication; this repository validates and indexes it,
-without another Full publisher. Scheduled synchronization writes Nightly only.
-Its Stable/Full modes use temporary diagnostics and cannot publish.
-
-With no eligible Nightly, the scheduled route returns `no_op` without modifying
-the index. It does not automatically remove an existing Nightly cask. Withdrawal
-of a previously published token therefore needs an explicit owner cleanup;
-the no-release result alone does not prove that the token is absent.
+without another Full publisher. Automated Nightly cask writes belong to the App
+protected `release-nightly-followups.yml` path (`sync-from-app-releases.yml` is
+retained strictly as a manual recovery and Stable/Full diagnostic workflow so two
+writers never overwrite Nightly casks).
 
 ## Immutable Evidence
 
