@@ -35,9 +35,13 @@ class Opl < Formula
     npm = node_bin/"npm"
     ENV["npm_config_cache"] = buildpath/".npm-cache"
     ENV["npm_config_update_notifier"] = "false"
-    system npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"
-    system npm, "run", "build"
-    system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    if (buildpath/"packages/daemon/dist/cli/bin-opl.js").exist?
+      system npm, "ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    else
+      system npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"
+      system npm, "run", "build"
+      system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    end
     libexec.install Dir["*"]
     (bin/"opl").write_env_script libexec/"bin/opl", PATH: "#{node_bin}:$PATH"
     if (libexec/"packages/daemon/bin/opld").exist?

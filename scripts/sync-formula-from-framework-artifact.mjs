@@ -97,11 +97,50 @@ export async function readFrameworkArtifact(artifactRef) {
   return formulaMetadataFromArtifact(result.payload, immutableRef, result.digest);
 }
 
-async function sha256OfUrl(url) {
-  const response = await fetchOk(url);
+async function sha256OfResponse(response) {
   const hash = crypto.createHash('sha256');
   for await (const chunk of response.body) hash.update(chunk);
   return hash.digest('hex');
+}
+
+async function sha256OfUrl(url, fetchImpl = fetch) {
+  const response = await fetchImpl(url);
+  if (!response.ok) throw new Error(`Request failed (${response.status}): ${url}`);
+  return sha256OfResponse(response);
+}
+
+export function prebuiltFrameworkReleaseArchiveUrl(version) {
+  if (!semverPattern.test(version ?? '')) {
+    throw new Error(`Invalid Framework version for release archive: ${String(version)}`);
+  }
+  return `https://github.com/gaofeng21cn/one-person-lab/releases/download/framework-v${version}/one-person-lab-framework-${version}.tar.gz`;
+}
+
+export async function resolveTransportArchive(metadata, fetchImpl = fetch) {
+  const prebuiltUrl = prebuiltFrameworkReleaseArchiveUrl(metadata.version);
+  const prebuiltResponse = await fetchImpl(prebuiltUrl);
+  if (prebuiltResponse.ok) {
+    const prebuiltSha256 = await sha256OfResponse(prebuiltResponse);
+    if (metadata.packageSha256 && prebuiltSha256 !== metadata.packageSha256) {
+      throw new Error(
+        `Prebuilt Framework archive digest mismatch for ${prebuiltUrl}: expected ${metadata.packageSha256}, got ${prebuiltSha256}.`,
+      );
+    }
+    return {
+      archiveUrl: prebuiltUrl,
+      transportSha256: prebuiltSha256,
+      transportKind: 'prebuilt_framework_release_archive',
+    };
+  }
+  if (prebuiltResponse.status !== 404) {
+    throw new Error(`Request failed (${prebuiltResponse.status}): ${prebuiltUrl}`);
+  }
+  const sourceSha256 = await sha256OfUrl(metadata.archiveUrl, fetchImpl);
+  return {
+    archiveUrl: metadata.archiveUrl,
+    transportSha256: sourceSha256,
+    transportKind: 'github_source_archive',
+  };
 }
 
 export function renderFormula(metadata) {
@@ -142,9 +181,13 @@ export function renderFormula(metadata) {
     npm = node_bin/"npm"
     ENV["npm_config_cache"] = buildpath/".npm-cache"
     ENV["npm_config_update_notifier"] = "false"
-    system npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"
-    system npm, "run", "build"
-    system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    if (buildpath/"packages/daemon/dist/cli/bin-opl.js").exist?
+      system npm, "ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    else
+      system npm, "ci", "--ignore-scripts", "--no-audit", "--no-fund"
+      system npm, "run", "build"
+      system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
+    end
     libexec.install Dir["*"]
     (bin/"opl").write_env_script libexec/"bin/opl", PATH: "#{node_bin}:$PATH"
     if (libexec/"packages/daemon/bin/opld").exist?
@@ -206,7 +249,10 @@ async function main() {
   };
   if (path.basename(options.formulaPath) !== 'opl.rb') throw new Error('The only allowed Formula output is opl.rb.');
   const metadata = await readFrameworkArtifact(options.artifactRef);
-  metadata.transportSha256 = await sha256OfUrl(metadata.archiveUrl);
+  const resolved = await resolveTransportArchive(metadata);
+  metadata.archiveUrl = resolved.archiveUrl;
+  metadata.transportSha256 = resolved.transportSha256;
+  metadata.transportKind = resolved.transportKind;
   writeFormulaAtomically(options.formulaPath, renderFormula(metadata));
   console.log(JSON.stringify(metadata));
 }

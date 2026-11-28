@@ -1,12 +1,15 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   formulaMetadataFromArtifact,
+  prebuiltFrameworkReleaseArchiveUrl,
   renderFormula,
+  resolveTransportArchive,
   writeFormulaAtomically,
 } from '../scripts/sync-formula-from-framework-artifact.mjs';
 
@@ -165,6 +168,8 @@ assert.doesNotMatch(renderedFormula, /npm = formula_opt_bin/);
 assert.match(renderedFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
 assert.match(renderedFormula, /write_env_script libexec\/"packages\/daemon\/bin\/opld", PATH: "#\{node_bin\}:\$PATH"/);
 assert.match(renderedFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
+assert.match(renderedFormula, /packages\/daemon\/dist\/cli\/bin-opl\.js/);
+assert.match(renderedFormula, /system npm, "ci", "--omit=dev", "--ignore-scripts"/);
 assert.match(renderedFormula, /system npm, "ci", "--ignore-scripts"/);
 assert.match(renderedFormula, /system npm, "prune", "--omit=dev", "--ignore-scripts"/);
 assert.match(renderedFormula, /system npm, "run", "build"/);
@@ -172,6 +177,55 @@ assert.match(renderedFormula, /def caveats/);
 assert.match(renderedFormula, /opl doctor --json/);
 assert.match(renderedFormula, /opl pack --help/);
 assert.doesNotMatch(renderedFormula, /system .*"opl", "install"/);
+
+{
+  const prebuiltBytes = Buffer.from('prebuilt-framework-tarball');
+  const prebuiltSha = crypto.createHash('sha256').update(prebuiltBytes).digest('hex');
+  const prebuiltUrl = prebuiltFrameworkReleaseArchiveUrl('0.2.1');
+  assert.equal(
+    prebuiltUrl,
+    'https://github.com/gaofeng21cn/one-person-lab/releases/download/framework-v0.2.1/one-person-lab-framework-0.2.1.tar.gz',
+  );
+  const resolvedPrebuilt = await resolveTransportArchive(
+    { ...formulaMetadata, packageSha256: prebuiltSha },
+    async (url) => {
+      assert.equal(url, prebuiltUrl);
+      return new Response(prebuiltBytes, { status: 200 });
+    },
+  );
+  assert.deepEqual(resolvedPrebuilt, {
+    archiveUrl: prebuiltUrl,
+    transportSha256: prebuiltSha,
+    transportKind: 'prebuilt_framework_release_archive',
+  });
+
+  await assert.rejects(
+    () =>
+      resolveTransportArchive(
+        { ...formulaMetadata, packageSha256: 'a'.repeat(64) },
+        async () => new Response(prebuiltBytes, { status: 200 }),
+      ),
+    /digest mismatch/,
+  );
+
+  const sourceBytes = Buffer.from('legacy-github-source-tarball');
+  const sourceSha = crypto.createHash('sha256').update(sourceBytes).digest('hex');
+  const seenUrls = [];
+  const resolvedFallback = await resolveTransportArchive(
+    formulaMetadata,
+    async (url) => {
+      seenUrls.push(url);
+      if (url === prebuiltUrl) return new Response('missing', { status: 404 });
+      return new Response(sourceBytes, { status: 200 });
+    },
+  );
+  assert.deepEqual(seenUrls, [prebuiltUrl, formulaMetadata.archiveUrl]);
+  assert.deepEqual(resolvedFallback, {
+    archiveUrl: formulaMetadata.archiveUrl,
+    transportSha256: sourceSha,
+    transportKind: 'github_source_archive',
+  });
+}
 
 const atomicFormulaTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-atomic-formula-'));
 try {
