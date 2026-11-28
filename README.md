@@ -24,13 +24,14 @@ For a headless Base installation:
 
 ```bash
 brew install opl
-opl install --headless --skip-packages
+opl daemon start --json
+opl doctor --json
 ```
 
-The Formula installs the Framework runtime and dependencies, not the desktop
-App or OPL Packages. Initialize first, then manage Packages through
-`opl packages`. App first launch uses the same Framework reconcile contract;
-follow its setup or repair prompt when required.
+The Formula installs the Framework CLI (`opl`), daemon (`opld`), runtime, and
+production dependencies, not the desktop App or OPL Packages. Verify readiness
+and manage Packages through `opl pack`. App first launch uses the same Framework
+reconcile contract; follow its setup or repair prompt when required.
 
 Independent utilities do not depend on the `opl` Formula:
 

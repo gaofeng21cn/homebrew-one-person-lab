@@ -26,10 +26,11 @@ assert.deepEqual(
 
 if (formulaPublished) {
   const oplFormula = read('Formula/opl.rb');
-  assert.match(oplFormula, /depends_on "node@22"/);
-  assert.match(oplFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
+  assert.match(oplFormula, /depends_on "node@24"/);
+  assert.match(oplFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@24\/bin"/);
   assert.doesNotMatch(oplFormula, /npm = formula_opt_bin/);
   assert.match(oplFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
+  assert.match(oplFormula, /write_env_script libexec\/"packages\/daemon\/bin\/opld", PATH: "#\{node_bin\}:\$PATH"/);
   assert.match(oplFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
 }
 
@@ -94,12 +95,26 @@ assert.doesNotMatch(fullCask, /releases\/download\/v[^/]+-full-[a-f0-9]{12}\//);
 if (hasNightlyCask) {
   const nightlyCask = read('Casks/one-person-lab-nightly.rb');
   assert.match(nightlyCask, /^cask "one-person-lab-nightly" do$/m);
-  assert.match(nightlyCask, /^\s*version "[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly(?:\.r[1-9])?"$/m);
+  const nightlyVersionMatch = nightlyCask.match(/^\s*version "([^"]+)"$/m);
+  assert.ok(nightlyVersionMatch, 'one-person-lab-nightly must declare version');
+  const nightlyPattern = /^[0-9]{2}\.(?:[1-9]|1[0-2])\.(?:[1-9]|[12][0-9]|3[01])-nightly(?:\.r[1-9])?$/;
+  if (nightlyVersionMatch[1].includes(',')) {
+    const parts = nightlyVersionMatch[1].split(',');
+    assert.equal(parts.length, 2, 'one-person-lab-nightly CSV version must use updater,display semantics');
+    assert.ok(parts[0], 'one-person-lab-nightly CSV updater version must be non-empty');
+    assert.match(parts[1], nightlyPattern);
+    assert.match(
+      nightlyCask,
+      /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\.csv\.second\}\/One-Person-Lab-[^"]+-mac-arm64\.dmg"$/m,
+    );
+  } else {
+    assert.match(nightlyVersionMatch[1], nightlyPattern);
+    assert.match(
+      nightlyCask,
+      /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\}\/One-Person-Lab-[^"]+-mac-arm64\.dmg"$/m,
+    );
+  }
   assert.match(nightlyCask, /^\s*sha256 "[a-f0-9]{64}"$/m);
-  assert.match(
-    nightlyCask,
-    /^\s*url "https:\/\/github\.com\/gaofeng21cn\/one-person-lab-app\/releases\/download\/v#\{version\}\/One-Person-Lab-[^"]+-mac-arm64\.dmg"$/m,
-  );
   assert.match(nightlyCask, /conflicts_with cask: \["one-person-lab", "one-person-lab-full"\]/);
   assert.match(nightlyCask, /^\s*auto_updates true$/m);
   assert.match(nightlyCask, /^\s*depends_on arch: :arm64$/m);
@@ -143,17 +158,19 @@ const renderedFormula = renderFormula({
 assert.match(renderedFormula, /version "0\.2\.1"/);
 assert.match(renderedFormula, new RegExp(`url "https://github\\.com/gaofeng21cn/one-person-lab/archive/${frameworkSha}\\.tar\\.gz"`));
 assert.match(renderedFormula, new RegExp(`sha256 "${'3'.repeat(64)}"`));
-assert.match(renderedFormula, /depends_on "node@22"/);
+assert.match(renderedFormula, /depends_on "node@24"/);
 assert.match(renderedFormula, /ENV\["npm_config_cache"\] = buildpath\/"\.npm-cache"/);
-assert.match(renderedFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@22\/bin"/);
+assert.match(renderedFormula, /node_bin = HOMEBREW_PREFIX\/"opt\/node@24\/bin"/);
 assert.doesNotMatch(renderedFormula, /npm = formula_opt_bin/);
 assert.match(renderedFormula, /write_env_script libexec\/"bin\/opl", PATH: "#\{node_bin\}:\$PATH"/);
+assert.match(renderedFormula, /write_env_script libexec\/"packages\/daemon\/bin\/opld", PATH: "#\{node_bin\}:\$PATH"/);
 assert.match(renderedFormula, /ENV\["PATH"\] = "\/usr\/bin:\/bin"/);
 assert.match(renderedFormula, /system npm, "ci", "--ignore-scripts"/);
 assert.match(renderedFormula, /system npm, "prune", "--omit=dev", "--ignore-scripts"/);
 assert.match(renderedFormula, /system npm, "run", "build"/);
 assert.match(renderedFormula, /def caveats/);
-assert.match(renderedFormula, /opl install --headless --skip-packages/);
+assert.match(renderedFormula, /opl doctor --json/);
+assert.match(renderedFormula, /opl pack --help/);
 assert.doesNotMatch(renderedFormula, /system .*"opl", "install"/);
 
 const atomicFormulaTmp = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-homebrew-atomic-formula-'));

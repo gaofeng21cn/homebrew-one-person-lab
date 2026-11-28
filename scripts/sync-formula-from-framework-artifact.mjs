@@ -113,7 +113,7 @@ export function renderFormula(metadata) {
   sha256 "${metadata.transportSha256}"
   license "Apache-2.0"
 
-  depends_on "node@22"
+  depends_on "node@24"
 
   # OPL_HOMEBREW_FORMULA_BOUNDARY_START
   # release_truth_authority: opl_framework_package_manifest
@@ -132,14 +132,14 @@ export function renderFormula(metadata) {
   # package_specific_formula_allowed: false
   # package_specific_cask_allowed: false
   # opl_packages_lifecycle_owner: opl_cli
-  # opl_packages_lifecycle_command: opl packages
+  # opl_packages_lifecycle_command: opl pack
   # user_state_initialized_during_brew_install: false
-  # first_user_state_reconcile: opl install --headless --skip-packages
+  # first_user_state_reconcile: opl doctor --json
   # OPL_HOMEBREW_FORMULA_BOUNDARY_END
 
   def install
     # Homebrew 5.1.3 does not expose formula_opt_bin to Formula instances.
-    node_bin = HOMEBREW_PREFIX/"opt/node@22/bin"
+    node_bin = HOMEBREW_PREFIX/"opt/node@24/bin"
     npm = node_bin/"npm"
     ENV["npm_config_cache"] = buildpath/".npm-cache"
     ENV["npm_config_update_notifier"] = "false"
@@ -148,15 +148,19 @@ export function renderFormula(metadata) {
     system npm, "prune", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"
     libexec.install Dir["*"]
     (bin/"opl").write_env_script libexec/"bin/opl", PATH: "#{node_bin}:$PATH"
+    if (libexec/"packages/daemon/bin/opld").exist?
+      (bin/"opld").write_env_script libexec/"packages/daemon/bin/opld", PATH: "#{node_bin}:$PATH"
+    end
   end
 
   def caveats
     <<~EOS
-      This Formula installs only the OPL Framework, CLI, runtime, and their
-      production dependencies. It does not install the OPL App or OPL Packages.
+      This Formula installs only the OPL Framework, CLI (opl), daemon (opld),
+      and their production dependencies. It does not install the OPL App or OPL Packages.
 
-      Initialize or reconcile user state explicitly after installation:
-        opl install --headless --skip-packages
+      Verify environment readiness or manage packages via:
+        opl doctor --json
+        opl pack --help
     EOS
   end
 
